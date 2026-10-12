@@ -89,3 +89,23 @@ export function samePlacement(before: Columns, after: Columns, taskId: string): 
 
 /** Replaces one task with the API's latest version of it. */
 export const replaceTask = (tasks: Task[], task: Task) => tasks.map((t) => (t.id === task.id ? task : t));
+
+const STATUS_ORDER = Object.fromEntries(STATUSES.map((s, i) => [s, i])) as Record<TaskStatus, number>;
+
+/** Board order, as the API sorts it: status, then position, then id. */
+function compareBoardOrder(a: Task, b: Task): number {
+  if (a.status !== b.status) return STATUS_ORDER[a.status] - STATUS_ORDER[b.status];
+  if (a.position !== b.position) return a.position < b.position ? -1 : 1;
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+}
+
+/**
+ * Puts the API's latest version of a task where it belongs on the board (its status or
+ * position may have changed), adds it if it is new, and drops it once it is archived.
+ */
+export function syncTask(tasks: Task[], task: Task): Task[] {
+  const rest = tasks.filter((t) => t.id !== task.id);
+  if (task.archived_at) return rest;
+  const index = rest.findIndex((t) => compareBoardOrder(task, t) < 0);
+  return index === -1 ? [...rest, task] : [...rest.slice(0, index), task, ...rest.slice(index)];
+}

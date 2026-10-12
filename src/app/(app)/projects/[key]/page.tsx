@@ -1,22 +1,25 @@
 import type { Metadata } from "next";
+import { connection } from "next/server";
 import { Suspense } from "react";
-import { Board, BoardSkeleton } from "./board";
 
 export async function generateMetadata({ params }: PageProps<"/projects/[key]">): Promise<Metadata> {
   const { key } = await params;
   return { title: `${key.toUpperCase()} · Botlog` };
 }
 
-export default function BoardPage({ params }: PageProps<"/projects/[key]">) {
+/**
+ * The board itself is in the layout; this page is the board with no task open. The title
+ * reads the key from the URL, so the page tells Next.js it renders at request time.
+ */
+export default function BoardPage() {
   return (
-    // The key comes from the URL, so the board renders at request time.
-    <Suspense fallback={<BoardSkeleton />}>
-      <BoardForKey params={params} />
+    <Suspense>
+      <RequestTime />
     </Suspense>
   );
 }
 
-async function BoardForKey({ params }: Pick<PageProps<"/projects/[key]">, "params">) {
-  const { key } = await params;
-  return <Board projectKey={key.toUpperCase()} />;
+async function RequestTime() {
+  await connection();
+  return null;
 }
