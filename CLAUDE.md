@@ -23,7 +23,7 @@ MVP only. Do not build v1.1 or Future items unless asked: epics/labels screens, 
 - **Never commit secrets.** `.env*` is gitignored; only `.env.example` with placeholders is committed.
 - **Schema changes** are Supabase CLI migrations in `supabase/migrations`. Never edit an applied migration; add a new one.
 - **Archive, don't delete** tasks and epics (`archived_at`).
-- **Task writes** send the `version` last read; mismatches return `409 conflict`. Every change writes an `activity_log` row (with agent and API key for AI).
+- **Task writes** send the `version` last read: update with `.eq("version", v)`; the trigger bumps it. No row back means 409 conflict (or 404 if the task is gone).
 - **Short IDs** (`BOT-42`) are accepted anywhere a task ID is; project key accepted anywhere a project ID is.
 - **API errors** are always `{ "error": { "code", "message" } }` with a matching HTTP status. Lists use cursor pagination (`?cursor=&limit=50`, max 100, `next_cursor`).
 - Markdown is rendered sanitized, no raw HTML.
@@ -37,6 +37,15 @@ MVP only. Do not build v1.1 or Future items unless asked: epics/labels screens, 
 ## Supabase
 
 Development uses Supabase Cloud, not a local Docker stack. The project is linked with `pnpm exec supabase link --project-ref <ref>`, and migrations are applied with `pnpm exec supabase db push`. Pushing changes a live database: only push after the migration has been reviewed, and never from a subagent.
+
+## Database conventions
+
+- **Agent identity:** for API key requests the API signs a short-lived token for the agent's owner (`sub`) with top-level `agent_id` and `api_key_id` claims. RLS uses the owner; `private.current_agent_id()` / `private.is_human()` read the claims. Agents cannot manage agents, API keys, profiles or the workspace.
+- **Grants are explicit and column-level.** Default privileges for `anon`/`authenticated` are revoked, so every new table needs RLS enabled, policies and its own `grant` list. Server-set columns (ids, `workspace_id`, task `number`, `version`, comment authors, timestamps) are never granted.
+- **Triggers do the bookkeeping:** short ID numbers, `version`, `updated_at`, comment authors and the whole `activity_log`. The API must not write these itself.
+- `api_key.hash` is not readable by `authenticated`, so never `select *` on `api_key` with a user client.
+- Task `position` is a base62 fractional index string (`collate "C"`).
+- `tests/db/` applies all migrations to in-memory Postgres (PGlite) with a Supabase stub (`tests/db/supabase-stub.sql`) and tests RLS as real users and agents. Every schema change needs tests there.
 
 ## Subagents (`.claude/agents/`)
 

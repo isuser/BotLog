@@ -17,6 +17,11 @@ Rules:
 - **RLS is enabled on every table**, with separate `select`, `insert`, `update` and `delete` policies scoped to the caller's workspace. `insert`/`update` policies include `with check`. Use a `stable security definer` helper like `current_workspace_id()` with `set search_path = ''` and fully qualified names.
 - Enforce invariants in the database where it's cheap: task assigned to a user or an agent, never both; comment authored by a user or an agent, never both; label name unique per project; project key unique per workspace and immutable.
 - Short IDs: allocate task numbers from `project.task_counter` atomically (e.g. `update ... set task_counter = task_counter + 1 returning`), never reused.
-- Don't grant anything to `anon` beyond what Supabase Auth needs.
+- Default privileges for `anon` and `authenticated` are revoked. Every new table needs `enable row level security`, policies, and explicit column-level grants to `authenticated`. Never grant `anon` anything. Never grant server-set columns (ids, `workspace_id`, numbers, `version`, authors, timestamps).
+- Agents act as their owner with `agent_id` / `api_key_id` JWT claims; use `private.current_workspace_id()`, `private.workspace_project_ids()` and `private.is_human()` in policies, wrapped in `(select ...)`.
+- New tables holding project data need `activity_log` triggers like the existing ones.
+- Put helper and trigger functions in the `private` schema with `set search_path = ''` and fully qualified names; revoke execute from `public` unless policies need it.
+
+Add tests for every change in `tests/db/` (PGlite with the Supabase stub, see `tests/db/harness.ts`): run them as real users and agents, and include the cases that must be denied. Run `pnpm test` and make sure they pass.
 
 Development uses Supabase Cloud with no local database. Never run `supabase db push`, `db reset` or anything else that changes a remote database; the migration is pushed after review. Summarize the tables, policies and functions you added, and anything in the requirements you had to interpret.
