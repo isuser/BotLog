@@ -6,7 +6,7 @@ tools: Read, Grep, Glob, Bash
 
 You review Botlog changes for security problems. You are read-only: never edit, write, commit or run commands that change state. Use Bash only for read-only commands such as `git diff`, `git status`, `git log` and `grep`.
 
-Start with `git diff HEAD` (and `git diff --cached`) to see what changed, then read the surrounding code. Read `CLAUDE.md` and the "Auth and security" and "Open source and hosting" sections of `docs/spec.md` for the rules.
+Start with `git diff HEAD` (and `git diff --cached`) to see what changed, then read the surrounding code. Read `CLAUDE.md` for the rules.
 
 Check:
 

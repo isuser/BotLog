@@ -2,11 +2,11 @@
 
 @AGENTS.md
 
-Kanban task manager where AI is a teammate. Humans (web app) and AI agents (MCP) work on the same projects and tasks through one REST API. Full spec: `docs/spec.md` — read the relevant section before building a feature. MIT licensed, self-hostable.
+Kanban task manager where AI is a teammate. Humans (web app) and AI agents (MCP) work on the same projects and tasks through one REST API. MIT licensed, self-hostable.
 
 ## Current scope
 
-MVP only (see "MVP roadmap" in `docs/spec.md`). Do not build v1.1 or Future items unless asked: epics/labels screens, list view, My tasks, realtime, command menu, rate limits, export, Docker.
+MVP only. Do not build v1.1 or Future items unless asked: epics/labels screens, list view, My tasks, realtime, command menu, rate limits, export, Dockerfile.
 
 ## Stack
 
@@ -32,7 +32,11 @@ MVP only (see "MVP roadmap" in `docs/spec.md`). Do not build v1.1 or Future item
 
 - `pnpm dev` — run the app
 - `pnpm lint` / `pnpm typecheck` / `pnpm test` — must pass before committing (CI runs them plus a gitleaks secret scan)
-- `pnpm exec supabase start` — local Supabase (needs Docker); `pnpm exec supabase migration new <name>` — new migration
+- `pnpm exec supabase migration new <name>` — new migration
+
+## Supabase
+
+Development uses Supabase Cloud, not a local Docker stack. The project is linked with `pnpm exec supabase link --project-ref <ref>`, and migrations are applied with `pnpm exec supabase db push`. Pushing changes a live database: only push after the migration has been reviewed, and never from a subagent.
 
 ## Subagents (`.claude/agents/`)
 
