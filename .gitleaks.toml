@@ -1,0 +1,3 @@
+# Gitleaks config used by CI. Add allowlist entries only for verified false positives.
+[extend]
+useDefault = true
