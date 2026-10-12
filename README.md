@@ -2,7 +2,7 @@
 
 A kanban task manager where AI is a teammate. Humans and AI agents work on the same projects and tasks through one API: humans through the web app, agents through an MCP server.
 
-> Status: early development, building the MVP. See [`docs/spec.md`](docs/spec.md) for the full spec and roadmap.
+> Status: early development, building the MVP.
 
 ## Stack
 
@@ -10,7 +10,7 @@ Next.js, TypeScript, Tailwind, 9ui (Base UI), dnd-kit, Supabase (Postgres, Auth,
 
 ## Development
 
-Requirements: Node 24+, pnpm, and Docker if you want to run Supabase locally.
+Requirements: Node 24+, pnpm, and a [Supabase](https://supabase.com) project.
 
 ```bash
 pnpm install
@@ -24,7 +24,8 @@ pnpm dev
 | `pnpm lint` | ESLint |
 | `pnpm typecheck` | TypeScript |
 | `pnpm test` | Vitest |
-| `pnpm exec supabase start` | Local Supabase (Docker) |
+| `pnpm exec supabase link --project-ref <ref>` | Link the CLI to your Supabase project |
+| `pnpm exec supabase db push` | Apply migrations to the linked project |
 
 Database changes live in `supabase/migrations` as Supabase CLI migrations.
 
