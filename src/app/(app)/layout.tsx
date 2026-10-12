@@ -1,0 +1,20 @@
+import Link from "next/link";
+import { Suspense } from "react";
+import { UserMenu } from "./user-menu";
+
+export default function AppLayout({ children }: LayoutProps<"/">) {
+  return (
+    <>
+      <header className="flex h-14 items-center justify-between border-b px-4">
+        <Link href="/" className="font-semibold">
+          Botlog
+        </Link>
+        {/* Reads the session, so it streams in at request time. */}
+        <Suspense fallback={<div className="h-8" />}>
+          <UserMenu />
+        </Suspense>
+      </header>
+      {children}
+    </>
+  );
+}
