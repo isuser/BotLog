@@ -23,7 +23,8 @@ pnpm dev
 | `pnpm dev` | Run the app at http://localhost:3000 |
 | `pnpm lint` | ESLint |
 | `pnpm typecheck` | TypeScript |
-| `pnpm test` | Vitest |
+| `pnpm test` | Unit and database tests (no network) |
+| `pnpm test:api` | API tests against the Supabase project in `.env.local` |
 | `pnpm exec supabase link --project-ref <ref>` | Link the CLI to your Supabase project |
 | `pnpm exec supabase db push` | Apply migrations to the linked project |
 

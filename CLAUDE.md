@@ -32,11 +32,21 @@ MVP only. Do not build v1.1 or Future items unless asked: epics/labels screens, 
 
 - `pnpm dev` — run the app
 - `pnpm lint` / `pnpm typecheck` / `pnpm test` — must pass before committing (CI runs them plus a gitleaks secret scan)
+- `pnpm test:api` — API tests against the Supabase project in `.env.local` (creates and deletes throwaway `botlog-test-*` users). Run after API changes
+- `pnpm exec supabase gen types typescript --linked --schema public < /dev/null > src/lib/supabase/database.types.ts` — regenerate DB types after a migration is applied
 - `pnpm exec supabase migration new <name> < /dev/null` — new migration (without `< /dev/null` it waits for SQL on stdin and hangs when not run in a terminal)
 
 ## Supabase
 
 Development uses Supabase Cloud, not a local Docker stack. The project is linked with `pnpm exec supabase link --project-ref <ref>`, and migrations are applied with `pnpm exec supabase db push`. Pushing changes a live database: only push after the migration has been reviewed, and never from a subagent.
+
+## API conventions
+
+- Route handlers in `src/app/api/v1/**/route.ts` wrap their logic in `route()` from `src/lib/api/handler.ts`: it authenticates the caller (`src/lib/api/auth.ts`) and turns thrown `ApiError`s into the standard error JSON. Use the `db` it hands you (RLS as the caller), never the admin client.
+- Callers: session cookie (web app; non-GET needs a same-origin `Origin`), `Bearer <Supabase access token>`, or `Bearer bl_...` agent API key. For an API key, `auth.ts` looks up the hash with the service role and signs a 120s token for the owner with `agent_id`/`api_key_id` claims (`SUPABASE_JWT_SIGNING_KEY`).
+- Validate bodies and query params with zod schemas in `src/lib/api/schemas.ts` (`parseBody`, `parseWith`). Map database errors with `fromPostgrest`.
+- Responses are `{ data }`, lists `{ data, next_cursor }`. Lists use keyset pagination (`keysetFilter` + `page` in `pagination.ts`).
+- Tasks: look up with `getTaskRow` (UUID or short ID), return `serializeTask`. Status/position changes go through `POST /tasks/:id/move`, which computes a fractional position from `after_id`/`before_id` (`positionFor`).
 
 ## Database conventions
 
