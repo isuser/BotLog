@@ -1,8 +1,8 @@
 import { ApiError } from "./errors";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const PROJECT_KEY = /^[A-Za-z][A-Za-z0-9]{1,9}$/;
-const SHORT_ID = /^([A-Za-z][A-Za-z0-9]{1,9})-(\d{1,9})$/;
+const PROJECT_KEY = /^[A-Za-z][A-Za-z0-9]{1,3}$/;
+const SHORT_ID = /^([A-Za-z][A-Za-z0-9]{1,3})-(\d{1,9})$/;
 
 export const isUuid = (value: string) => UUID.test(value);
 

@@ -18,15 +18,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { api, ApiRequestError } from "@/lib/client/api";
+import { PROJECT_KEY_MAX, PROJECT_KEY_PATTERN, suggestKey } from "@/lib/client/project-key";
 import type { Project } from "@/lib/client/types";
-
-/** Suggests a key from the name: initials for several words, else the first letters. */
-export function suggestKey(name: string): string {
-  const words = name.toUpperCase().replace(/[^A-Z0-9 ]/g, " ").split(/\s+/).filter(Boolean);
-  const raw = words.length > 1 ? words.map((w) => w[0]).join("") : (words[0] ?? "").slice(0, 3);
-  const key = raw.replace(/^[0-9]+/, "").slice(0, 10);
-  return key.length >= 2 ? key : "";
-}
 
 export function NewProjectDialog({ trigger }: { trigger: React.ReactElement }) {
   const router = useRouter();
@@ -82,7 +75,7 @@ export function NewProjectDialog({ trigger }: { trigger: React.ReactElement }) {
           <DialogHeader>
             <DialogTitle>New project</DialogTitle>
             <DialogDescription>
-              The key prefixes task IDs, like {key || "BOT"}-1. It can&apos;t be changed later.
+              The key prefixes task IDs, like {key || "BOT"}-1: 2 to 4 letters or digits. It can&apos;t be changed later.
             </DialogDescription>
           </DialogHeader>
 
@@ -112,9 +105,9 @@ export function NewProjectDialog({ trigger }: { trigger: React.ReactElement }) {
             <Input
               id="project-key"
               required
-              pattern="[A-Za-z][A-Za-z0-9]{1,9}"
-              title="2 to 10 letters or digits, starting with a letter"
-              maxLength={10}
+              pattern={PROJECT_KEY_PATTERN}
+              title="2 to 4 letters or digits, starting with a letter"
+              maxLength={PROJECT_KEY_MAX}
               value={key}
               onChange={(e) => {
                 setKey(e.target.value.toUpperCase());
