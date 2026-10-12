@@ -28,6 +28,9 @@
     "next": "16.4.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
+    "react-markdown": "^10.1.0",
+    "rehype-sanitize": "^6.0.0",
+    "remark-gfm": "^4.0.1",
     "server-only": "^0.0.1",
     "sonner": "^2.0.8",
     "swr": "^2.5.1",
@@ -38,6 +41,7 @@
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.9",
     "@tailwindcss/turbopack": "^4",
+    "@tailwindcss/typography": "^0.5.20",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

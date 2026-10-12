@@ -55,7 +55,11 @@ export function Board({ projectKey }: { projectKey: string }) {
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 6 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+    // Enter opens a task, so only Space picks one up.
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+      keyboardCodes: { start: ["Space"], cancel: ["Escape"], end: ["Space", "Enter"] },
+    }),
   );
 
   const updateDrag = (next: Columns) => {
@@ -169,6 +173,7 @@ export function Board({ projectKey }: { projectKey: string }) {
           onDragOver={onDragOver}
           onDragEnd={onDragEnd}
           onDragCancel={endDrag}
+          accessibility={{ screenReaderInstructions: { draggable: DRAG_INSTRUCTIONS } }}
         >
           <div className="flex flex-1 snap-x snap-mandatory scroll-px-4 items-start gap-3 overflow-x-auto px-4 pb-4 sm:snap-none">
             {COLUMNS.map(({ status, title }) => (
@@ -181,6 +186,10 @@ export function Board({ projectKey }: { projectKey: string }) {
     </main>
   );
 }
+
+const DRAG_INSTRUCTIONS =
+  "Press Enter to open the task. To pick it up, press Space. While dragging, use the arrow keys to move it, " +
+  "then press Space to drop it or Escape to cancel.";
 
 function reportError(error: unknown) {
   if (isConflict(error)) toast("This task was updated, reloaded");

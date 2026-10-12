@@ -7,6 +7,7 @@ import {
   placement,
   reorderInColumn,
   samePlacement,
+  syncTask,
 } from "./board";
 import type { Task, TaskStatus } from "./types";
 
@@ -72,5 +73,33 @@ describe("placement", () => {
     expect(samePlacement(columns, columns, "a")).toBe(true);
     expect(samePlacement(columns, reorderInColumn(columns, "a", "b"), "a")).toBe(false);
     expect(samePlacement(columns, moveToColumn(columns, "c", "done"), "c")).toBe(false);
+  });
+});
+
+describe("syncTask", () => {
+  const placed = (id: string, status: TaskStatus, position: string, archived = false) =>
+    ({ id, status, position, archived_at: archived ? "2026-01-01T00:00:00Z" : null }) as Task;
+  const tasks = [placed("a", "backlog", "a0"), placed("b", "backlog", "a1"), placed("c", "done", "a0")];
+
+  test("replaces a task in place when its position is unchanged", () => {
+    const updated = { ...tasks[1], title: "New title" };
+    const result = syncTask(tasks, updated);
+    expect(ids(result)).toEqual(["a", "b", "c"]);
+    expect(result[1]).toBe(updated);
+  });
+
+  test("moves a task to its new column and position", () => {
+    expect(ids(syncTask(tasks, placed("a", "done", "Zz")))).toEqual(["b", "a", "c"]);
+    expect(ids(syncTask(tasks, placed("c", "backlog", "a0V")))).toEqual(["a", "c", "b"]);
+  });
+
+  test("adds a new task and drops an archived one", () => {
+    expect(ids(syncTask(tasks, placed("d", "todo", "a0")))).toEqual(["a", "b", "d", "c"]);
+    expect(ids(syncTask(tasks, placed("b", "backlog", "a1", true)))).toEqual(["a", "c"]);
+  });
+
+  test("compares positions byte-wise, like the database", () => {
+    // "Z" sorts before "a" in the C collation the position column uses.
+    expect(ids(syncTask(tasks, placed("d", "backlog", "Zz")))).toEqual(["d", "a", "b", "c"]);
   });
 });
