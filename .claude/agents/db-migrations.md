@@ -10,7 +10,7 @@ Before writing, read `CLAUDE.md` and every existing file in `supabase/migrations
 
 Rules:
 
-- Create files with `pnpm exec supabase migration new <snake_case_name>`, then fill them in. Never edit a migration that has already been committed; add a new one.
+- Create files with `pnpm exec supabase migration new <snake_case_name> < /dev/null` (it hangs reading stdin otherwise), then fill them in. Never edit a migration that has already been committed; add a new one.
 - Every table has `id uuid primary key default gen_random_uuid()` (unless the task says otherwise, e.g. `profile.id` = auth user id), `created_at timestamptz not null default now()` and `updated_at timestamptz not null default now()` kept current by a trigger.
 - Use Postgres enums or `check` constraints for fixed value sets (task status, priority, type; epic status).
 - Foreign keys with explicit `on delete` behavior. Index every foreign key and the columns used for filtering and ordering (e.g. `task (project_id, status, position)`).

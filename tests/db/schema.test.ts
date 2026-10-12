@@ -324,7 +324,7 @@ describe("activity log", () => {
     as(db, { sub }, async (tx) =>
       (await tx.query<Entry>(
         `select action, actor_type, user_id, agent_id, api_key_id, changes
-         from activity_log where entity_type = 'task' and entity_id = $1 order by created_at, id`,
+         from activity_log where entity_type = 'task' and entity_id = $1 order by seq`,
         [taskId],
       )).rows,
     );

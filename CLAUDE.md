@@ -32,7 +32,7 @@ MVP only. Do not build v1.1 or Future items unless asked: epics/labels screens, 
 
 - `pnpm dev` — run the app
 - `pnpm lint` / `pnpm typecheck` / `pnpm test` — must pass before committing (CI runs them plus a gitleaks secret scan)
-- `pnpm exec supabase migration new <name>` — new migration
+- `pnpm exec supabase migration new <name> < /dev/null` — new migration (without `< /dev/null` it waits for SQL on stdin and hangs when not run in a terminal)
 
 ## Supabase
 
@@ -42,7 +42,7 @@ Development uses Supabase Cloud, not a local Docker stack. The project is linked
 
 - **Agent identity:** for API key requests the API signs a short-lived token for the agent's owner (`sub`) with top-level `agent_id` and `api_key_id` claims. RLS uses the owner; `private.current_agent_id()` / `private.is_human()` read the claims. Agents cannot manage agents, API keys, profiles or the workspace.
 - **Grants are explicit and column-level.** Default privileges for `anon`/`authenticated` are revoked, so every new table needs RLS enabled, policies and its own `grant` list. Server-set columns (ids, `workspace_id`, task `number`, `version`, comment authors, timestamps) are never granted.
-- **Triggers do the bookkeeping:** short ID numbers, `version`, `updated_at`, comment authors and the whole `activity_log`. The API must not write these itself.
+- **Triggers do the bookkeeping:** short ID numbers, `version`, `updated_at`, comment authors and the whole `activity_log`. The API must not write these itself. Order activity by `seq`, not `created_at`.
 - `api_key.hash` is not readable by `authenticated`, so never `select *` on `api_key` with a user client.
 - Task `position` is a base62 fractional index string (`collate "C"`).
 - `tests/db/` applies all migrations to in-memory Postgres (PGlite) with a Supabase stub (`tests/db/supabase-stub.sql`) and tests RLS as real users and agents. Every schema change needs tests there.
