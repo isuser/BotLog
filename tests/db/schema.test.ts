@@ -61,6 +61,43 @@ describe("new users", () => {
     const workspaces = await as(db, { sub: userId }, (tx) => tx.query("select id from workspace"));
     expect(workspaces.rows).toEqual([{ id: profile.workspace_id }]);
   });
+
+  test("deleting a user deletes their workspace and everything in it", async () => {
+    const { userId, projectId } = await setup();
+    const claims = await createAgent(userId);
+    const { workspace_id } = await one<{ workspace_id: string }>(
+      db,
+      "select workspace_id from profile where id = $1",
+      [userId],
+    );
+    await as(db, { sub: userId }, async (tx) => {
+      const task = await one<{ id: string }>(
+        tx,
+        "insert into task (project_id, title, position, assignee_user_id) values ($1, 't', 'a0', $2) returning id",
+        [projectId, userId],
+      );
+      const label = await one<{ id: string }>(tx, "insert into label (project_id, name) values ($1, 'x') returning id", [projectId]);
+      await tx.query("insert into task_label (task_id, label_id) values ($1, $2)", [task.id, label.id]);
+      await tx.query("insert into comment (task_id, body) values ($1, 'hi')", [task.id]);
+    });
+    await as(db, claims, (tx) =>
+      tx.query("insert into comment (task_id, body) select id, 'from agent' from task where project_id = $1", [projectId]),
+    );
+
+    await db.query("delete from auth.users where id = $1", [userId]);
+
+    const left = await one<Record<string, number>>(
+      db,
+      `select
+         (select count(*)::int from workspace where id = $1) as workspaces,
+         (select count(*)::int from project where workspace_id = $1) as projects,
+         (select count(*)::int from agent where workspace_id = $1) as agents,
+         (select count(*)::int from api_key where workspace_id = $1) as keys,
+         (select count(*)::int from activity_log where workspace_id = $1) as activity`,
+      [workspace_id],
+    );
+    expect(left).toEqual({ workspaces: 0, projects: 0, agents: 0, keys: 0, activity: 0 });
+  });
 });
 
 describe("workspace isolation", () => {
