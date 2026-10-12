@@ -20,7 +20,12 @@ function loadSigningKey(): Promise<SigningKey> {
       return { key: new TextEncoder().encode(raw), alg: "HS256" };
     }
 
+    // The Supabase CLI writes key_ops ["sign", "verify"], which WebCrypto rejects for a
+    // private key; we only sign, so drop the usage hints.
     const jwk = JSON.parse(raw) as JWK;
+    delete jwk.key_ops;
+    delete jwk.use;
+    delete jwk.ext;
     const alg = jwk.alg ?? (jwk.kty === "EC" ? "ES256" : jwk.kty === "RSA" ? "RS256" : "HS256");
     const key = await importJWK(jwk, alg);
     return { key, alg, kid: jwk.kid };

@@ -6,7 +6,15 @@ let publicKey: CryptoKey;
 beforeAll(async () => {
   const pair = await generateKeyPair("ES256", { extractable: true });
   publicKey = pair.publicKey;
-  const jwk = { ...(await exportJWK(pair.privateKey)), kid: "test-kid", alg: "ES256" };
+  // Same shape as `supabase gen signing-key` output.
+  const jwk = {
+    ...(await exportJWK(pair.privateKey)),
+    kid: "test-kid",
+    alg: "ES256",
+    use: "sig",
+    key_ops: ["sign", "verify"],
+    ext: true,
+  };
   vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://example.supabase.co");
   vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "sb_publishable_test");
   vi.stubEnv("SUPABASE_JWT_SIGNING_KEY", JSON.stringify(jwk));
