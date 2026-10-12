@@ -19,7 +19,12 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${inter.variable} ${geistMono.variable} antialiased`}>
+    <html
+      lang="en"
+      // globals.css sets smooth scrolling; this tells Next.js to skip it during navigations.
+      data-scroll-behavior="smooth"
+      className={`${inter.variable} ${geistMono.variable} antialiased`}
+    >
       <body>
         <div className="root flex flex-col">{children}</div>
       </body>
