@@ -13,7 +13,7 @@ describe("parseTaskRef", () => {
   });
 
   test("rejects anything else with a helpful 400", () => {
-    for (const ref of ["BOT", "42", "BOT-", "B-1", "BOT-1-2", "../etc", "BOT-1234567890"]) {
+    for (const ref of ["BOT", "42", "BOT-", "B-1", "BOT-1-2", "../etc", "BOT-1234567890", "ABCDE-1"]) {
       expect(() => parseTaskRef(ref)).toThrow(ApiError);
     }
   });
@@ -26,7 +26,7 @@ describe("parseProjectRef", () => {
   });
 
   test("rejects invalid keys", () => {
-    for (const ref of ["B", "1BOT", "BOT-1", "TOOLONGKEY1"]) {
+    for (const ref of ["B", "1BOT", "BOT-1", "ABCDE"]) {
       expect(() => parseProjectRef(ref)).toThrow(ApiError);
     }
   });

@@ -32,7 +32,7 @@ export const createProjectSchema = z
       .string()
       .trim()
       .toUpperCase()
-      .regex(/^[A-Z][A-Z0-9]{1,9}$/, "2 to 10 letters or digits, starting with a letter"),
+      .regex(/^[A-Z][A-Z0-9]{1,3}$/, "2 to 4 letters or digits, starting with a letter"),
     description: z.string().max(10_000).optional(),
   })
   .strict();

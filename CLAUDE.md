@@ -48,6 +48,13 @@ Development uses Supabase Cloud, not a local Docker stack. The project is linked
 - Responses are `{ data }`, lists `{ data, next_cursor }`. Lists use keyset pagination (`keysetFilter` + `page` in `pagination.ts`).
 - Tasks: look up with `getTaskRow` (UUID or short ID), return `serializeTask`. Status/position changes go through `POST /tasks/:id/move`, which computes a fractional position from `after_id`/`before_id` (`positionFor`).
 
+## UI conventions
+
+- Pages are thin server components; screens are client components that read and write through the API with `api`/`apiAll` from `src/lib/client/api.ts` and SWR (refetches on window focus). Types come from the API serializers via `src/lib/client/types.ts`.
+- Use 9ui components from `src/components/ui` (add more with `pnpm dlx shadcn@latest add @9ui/<name>`). Base UI uses a `render` prop instead of `asChild`.
+- Cache Components is on: anything reading the session or params sits behind `<Suspense>`; `getSessionUser()` calls `connection()` so it never runs while the app shell is prerendered.
+- Board logic that isn't React (grouping, moves, placement) lives in `src/lib/client/board.ts` with unit tests. On a 409, reload and toast "This task was updated, reloaded".
+
 ## Database conventions
 
 - **Agent identity:** for API key requests the API signs a short-lived token for the agent's owner (`sub`) with top-level `agent_id` and `api_key_id` claims. RLS uses the owner; `private.current_agent_id()` / `private.is_human()` read the claims. Agents cannot manage agents, API keys, profiles or the workspace.

@@ -155,9 +155,14 @@ describe("short IDs", () => {
     await expect(
       as(db, { sub: userId }, (tx) => tx.query("insert into project (name, key) values ('x', 'DUP')")),
     ).rejects.toThrow(/duplicate key/);
+    for (const key of ["bad-key", "ABCDE", "A", "1AB"]) {
+      await expect(
+        as(db, { sub: userId }, (tx) => tx.query("insert into project (name, key) values ('x', $1)", [key])),
+      ).rejects.toThrow(/check constraint/);
+    }
     await expect(
-      as(db, { sub: userId }, (tx) => tx.query("insert into project (name, key) values ('x', 'bad-key')")),
-    ).rejects.toThrow(/check constraint/);
+      as(db, { sub: userId }, (tx) => tx.query("insert into project (name, key) values ('x', 'AB12')")),
+    ).resolves.toBeDefined();
     // Another workspace can use the same key.
     await expect(setup("DUP")).resolves.toBeDefined();
   });
