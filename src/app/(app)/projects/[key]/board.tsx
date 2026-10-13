@@ -150,16 +150,16 @@ export function Board({ projectKey }: { projectKey: string }) {
 
   return (
     <main className="flex min-h-0 flex-1 flex-col gap-4 py-4">
-      <div className="flex items-center gap-3 px-4">
+      <div className="mx-auto flex w-full max-w-[77rem] items-center gap-3 px-4">
         <Link href="/" aria-label="Back to projects" className="text-muted-foreground hover:text-foreground">
           <ArrowLeftIcon className="size-4" />
         </Link>
         {project ? (
-          <h1 className="truncate text-lg font-semibold">
-            {project.name} <span className="text-muted-foreground font-mono text-sm font-normal">{project.key}</span>
+          <h1 className="font-display truncate text-4xl font-bold tracking-[-0.02em]">
+            {project.name} <span className="text-muted-foreground font-mono text-sm font-normal tracking-normal">{project.key}</span>
           </h1>
         ) : (
-          <Skeleton className="h-6 w-48" />
+          <Skeleton className="h-10 w-64" />
         )}
       </div>
 
@@ -175,10 +175,13 @@ export function Board({ projectKey }: { projectKey: string }) {
           onDragCancel={endDrag}
           accessibility={{ screenReaderInstructions: { draggable: DRAG_INSTRUCTIONS } }}
         >
-          <div className="flex flex-1 snap-x snap-mandatory scroll-px-4 items-start gap-3 overflow-x-auto px-4 pb-4 sm:snap-none">
-            {COLUMNS.map(({ status, title }) => (
-              <BoardColumn key={status} status={status} title={title} tasks={columns[status]} onAdd={addTask} />
-            ))}
+          <div className="flex flex-1 snap-x snap-mandatory scroll-px-4 overflow-x-auto px-4 pb-4 sm:snap-none">
+            {/* Centred while the columns fit; scrolls from the left edge when they don't. */}
+            <div className="mx-auto flex w-max items-start gap-4">
+              {COLUMNS.map(({ status, title }) => (
+                <BoardColumn key={status} status={status} title={title} tasks={columns[status]} onAdd={addTask} />
+              ))}
+            </div>
           </div>
           <DragOverlay>{activeTask ? <TaskCard task={activeTask} dragging /> : null}</DragOverlay>
         </DndContext>
@@ -198,7 +201,7 @@ function reportError(error: unknown) {
 
 export function BoardSkeleton() {
   return (
-    <div className="flex gap-3 overflow-hidden px-4">
+    <div className="mx-auto flex w-full max-w-[77rem] gap-4 overflow-hidden px-4">
       {COLUMNS.map(({ status }) => (
         <Skeleton key={status} className="h-96 w-[85vw] max-w-80 shrink-0 rounded-xl sm:w-72" />
       ))}

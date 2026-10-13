@@ -51,7 +51,7 @@ export function ApiKeys({ agent, canManage }: { agent: Agent; canManage: boolean
       </div>
 
       {error ? (
-        <p className="text-danger-foreground text-sm">Couldn&apos;t load keys: {error.message}</p>
+        <p className="text-danger text-sm">Couldn&apos;t load keys: {error.message}</p>
       ) : !keys ? null : keys.length === 0 ? (
         <p className="text-muted-foreground text-sm">No keys yet. Create one to connect an AI client.</p>
       ) : (

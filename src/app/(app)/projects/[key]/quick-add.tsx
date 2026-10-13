@@ -35,7 +35,7 @@ export function QuickAdd({ columnTitle, onAdd }: { columnTitle: string; onAdd: (
         onKeyDown={(e) => {
           if (e.key === "Escape") setTitle("");
         }}
-        className="bg-transparent shadow-none"
+        className="border-dashed bg-transparent shadow-none"
       />
     </form>
   );
