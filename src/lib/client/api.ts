@@ -46,3 +46,10 @@ export async function apiAll<T>(path: string): Promise<T[]> {
 }
 
 export const isConflict = (error: unknown) => error instanceof ApiRequestError && error.status === 409;
+
+/** A message for the user, listing which fields were invalid when the API says so. */
+export function errorMessage(error: unknown): string {
+  const details = error instanceof ApiRequestError ? error.details : undefined;
+  if (details?.length) return details.map((d) => `${d.path}: ${d.message}`).join(". ");
+  return error instanceof Error ? error.message : "Something went wrong.";
+}

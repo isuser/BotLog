@@ -94,3 +94,27 @@ export const taskListFilters = z.object({
   epic_id: z.union([z.literal("none"), z.uuid()]).optional(),
   archived: z.enum(["true", "false"]).optional(),
 });
+
+const agentFields = {
+  name: z.string().trim().min(1).max(100),
+  description: z.string().max(2_000),
+  avatar: z.string().trim().max(500).nullable(),
+};
+
+export const createAgentSchema = z
+  .object(agentFields)
+  .partial()
+  .required({ name: true })
+  .strict();
+
+export const updateAgentSchema = z
+  .object(agentFields)
+  .partial()
+  .strict()
+  .refine((body) => Object.keys(body).length > 0, "Send at least one field to change.");
+
+export const agentListFilters = z.object({ archived: z.enum(["true", "false"]).optional() });
+
+export const createApiKeySchema = z.object({ name: z.string().trim().min(1).max(100) }).strict();
+
+export const apiKeyListFilters = z.object({ revoked: z.enum(["true", "false"]).optional() });

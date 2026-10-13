@@ -4,6 +4,11 @@
  */
 import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
 import * as unknownRoute from "@/app/api/[...path]/route";
+import * as agentKey from "@/app/api/v1/agents/[id]/api-keys/[keyId]/route";
+import * as agentKeys from "@/app/api/v1/agents/[id]/api-keys/route";
+import * as agentRestore from "@/app/api/v1/agents/[id]/restore/route";
+import * as agentRoute from "@/app/api/v1/agents/[id]/route";
+import * as agents from "@/app/api/v1/agents/route";
 import * as meTasks from "@/app/api/v1/me/tasks/route";
 import * as projectRoute from "@/app/api/v1/projects/[id]/route";
 import * as projectTasks from "@/app/api/v1/projects/[id]/tasks/route";
@@ -293,5 +298,114 @@ describe.skipIf(!keyLive)("agents with API keys", () => {
     expect((await call(projects.GET, { token: key })).status).toBe(200);
     await alice.db.from("api_key").update({ revoked_at: new Date().toISOString() }).eq("id", data!.id);
     expect((await call(projects.GET, { token: key })).status).toBe(401);
+  });
+});
+
+describe("agent management", () => {
+  let agentId: string;
+
+  const createKey = async (name = "laptop", token = alice.token, id = agentId) =>
+    call(agentKeys.POST, { method: "POST", params: { id }, token, body: { name } });
+
+  beforeAll(async () => {
+    const res = await call(agents.POST, { method: "POST", token: alice.token, body: { name: "  Managed bot ", description: "Writes tests" } });
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+    expect(res.body.data).toMatchObject({ name: "Managed bot", description: "Writes tests", owner_user_id: alice.id, archived_at: null });
+    agentId = res.body.data.id;
+  });
+
+  test("are listed and readable in the workspace only", async () => {
+    const list = await call(agents.GET, { token: alice.token });
+    expect(list.body.data.map((a: { id: string }) => a.id)).toContain(agentId);
+    expect((await call(agentRoute.GET, { params: { id: agentId }, token: alice.token })).status).toBe(200);
+
+    expect((await call(agentRoute.GET, { params: { id: agentId }, token: bob.token })).status).toBe(404);
+    expect((await call(agentRoute.GET, { params: { id: "not-a-uuid" }, token: alice.token })).status).toBe(404);
+    const bobs = await call(agents.GET, { token: bob.token });
+    expect(bobs.body.data.map((a: { id: string }) => a.id)).not.toContain(agentId);
+  });
+
+  test("validate their fields", async () => {
+    expect((await call(agents.POST, { method: "POST", token: alice.token, body: { name: " " } })).status).toBe(400);
+    expect((await call(agents.POST, { method: "POST", token: alice.token, body: { name: "x", owner_user_id: bob.id } })).status).toBe(400);
+    const edit = await call(agentRoute.PATCH, { method: "PATCH", params: { id: agentId }, token: alice.token, body: { description: "Writes more tests" } });
+    expect(edit.body.data.description).toBe("Writes more tests");
+    expect((await call(agentRoute.PATCH, { method: "PATCH", params: { id: agentId }, token: alice.token, body: {} })).status).toBe(400);
+  });
+
+  test("can't be managed from another workspace", async () => {
+    expect((await createKey("x", bob.token)).status).toBe(404);
+    expect((await call(agentRoute.DELETE, { method: "DELETE", params: { id: agentId }, token: bob.token })).status).toBe(404);
+    expect((await call(agentKeys.GET, { params: { id: agentId }, token: bob.token })).status).toBe(404);
+  });
+
+  test("keys are shown once, listed without the secret, and track use", async () => {
+    const created = await createKey();
+    expect(created.status, JSON.stringify(created.body)).toBe(201);
+    const { key, prefix, id } = created.body.data;
+    expect(key).toMatch(/^bl_/);
+    expect(key.startsWith(prefix)).toBe(true);
+
+    const list = await call(agentKeys.GET, { params: { id: agentId }, token: alice.token });
+    const listed = list.body.data.find((k: { id: string }) => k.id === id);
+    expect(listed).toMatchObject({ name: "laptop", prefix, last_used_at: null, revoked_at: null });
+    expect(listed).not.toHaveProperty("key");
+    expect(listed).not.toHaveProperty("hash");
+    expect(JSON.stringify(list.body)).not.toContain(key);
+
+    if (!keyLive) return;
+    expect((await call(projects.GET, { token: key })).status).toBe(200);
+    const after = await call(agentKeys.GET, { params: { id: agentId }, token: alice.token });
+    expect(after.body.data.find((k: { id: string }) => k.id === id).last_used_at).toEqual(expect.any(String));
+  });
+
+  test("revoked keys stop working and stay listed", async () => {
+    const { key, id } = (await createKey("temp")).body.data;
+    const revoked = await call(agentKey.DELETE, { method: "DELETE", params: { id: agentId, keyId: id }, token: alice.token });
+    expect(revoked.status).toBe(200);
+    expect(revoked.body.data.revoked_at).toEqual(expect.any(String));
+    const again = await call(agentKey.DELETE, { method: "DELETE", params: { id: agentId, keyId: id }, token: alice.token });
+    expect(again.body.data.revoked_at).toBe(revoked.body.data.revoked_at);
+
+    expect((await call(projects.GET, { token: key })).status).toBe(401);
+    const active = await call(agentKeys.GET, { path: `/api/v1/agents/${agentId}/api-keys?revoked=false`, params: { id: agentId }, token: alice.token });
+    expect(active.body.data.map((k: { id: string }) => k.id)).not.toContain(id);
+    const all = await call(agentKeys.GET, { params: { id: agentId }, token: alice.token });
+    expect(all.body.data.map((k: { id: string }) => k.id)).toContain(id);
+  });
+
+  test("archived agents leave the list, their keys stop working, and they can be restored", async () => {
+    const { key } = (await createKey("archive me")).body.data;
+
+    const archived = await call(agentRoute.DELETE, { method: "DELETE", params: { id: agentId }, token: alice.token });
+    expect(archived.body.data.archived_at).toEqual(expect.any(String));
+    expect((await call(agents.GET, { token: alice.token })).body.data.map((a: { id: string }) => a.id)).not.toContain(agentId);
+    const archivedList = await call(agents.GET, { path: "/api/v1/agents?archived=true", token: alice.token });
+    expect(archivedList.body.data.map((a: { id: string }) => a.id)).toContain(agentId);
+
+    expect((await call(projects.GET, { token: key })).status).toBe(401);
+    expect((await createKey("nope")).status).toBe(400);
+    expect((await call(agentRoute.PATCH, { method: "PATCH", params: { id: agentId }, token: alice.token, body: { name: "x" } })).status).toBe(400);
+
+    const restored = await call(agentRestore.POST, { method: "POST", params: { id: agentId }, token: alice.token });
+    expect(restored.body.data.archived_at).toBeNull();
+    if (keyLive) expect((await call(projects.GET, { token: key })).status).toBe(200);
+  });
+
+  test.skipIf(!keyLive)("agents can list agents but not manage agents or keys", async () => {
+    const { key, id } = (await createKey("agent self")).body.data;
+    expect((await call(agents.GET, { token: key })).status).toBe(200);
+    expect((await call(agentRoute.GET, { params: { id: agentId }, token: key })).status).toBe(200);
+
+    const forbidden = [
+      await call(agents.POST, { method: "POST", token: key, body: { name: "Rogue" } }),
+      await call(agentRoute.PATCH, { method: "PATCH", params: { id: agentId }, token: key, body: { name: "Rogue" } }),
+      await call(agentRoute.DELETE, { method: "DELETE", params: { id: agentId }, token: key }),
+      await call(agentRestore.POST, { method: "POST", params: { id: agentId }, token: key }),
+      await call(agentKeys.GET, { params: { id: agentId }, token: key }),
+      await createKey("more", key),
+      await call(agentKey.DELETE, { method: "DELETE", params: { id: agentId, keyId: id }, token: key }),
+    ];
+    expect(forbidden.map((res) => res.status)).toEqual(forbidden.map(() => 403));
   });
 });

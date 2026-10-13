@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import useSWR from "swr";
 import { ActorAvatar, actorName, type Actor } from "@/components/actor-avatar";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { apiAll } from "@/lib/client/api";
 import { COLUMNS } from "@/lib/client/board";
-import type { Task, TaskStatus } from "@/lib/client/types";
+import type { Agent, Task, TaskStatus } from "@/lib/client/types";
 
 export type CurrentUser = { id: string; email: string };
 
@@ -89,13 +91,19 @@ export function TaskFields({
   onChange: (change: FieldChange) => Promise<boolean>;
   onMove: (status: TaskStatus) => Promise<boolean>;
 }) {
-  // Agents show up here once they can be managed (step 7). Until then: unassigned, you,
-  // and whoever the task is assigned to now.
+  const { data: agents } = useSWR("/agents", (path: string) => apiAll<Agent>(path));
+
+  // Unassigned, you, the workspace's active agents, and whoever the task is assigned to now
+  // (which may be an archived agent).
   const me: Actor = { type: "user", id: currentUser.id, name: "", email: currentUser.email };
   const assignees = new Map<string, Actor | null>([
     ["none", null],
     [assigneeValue(me), task.assignee?.type === "user" && task.assignee.id === me.id ? task.assignee : me],
   ]);
+  for (const agent of agents ?? []) {
+    const actor: Actor = { type: "agent", id: agent.id, name: agent.name, avatar: agent.avatar };
+    assignees.set(assigneeValue(actor), actor);
+  }
   if (task.assignee) assignees.set(assigneeValue(task.assignee), task.assignee);
   const assigneeLabel = (actor: Actor | null) =>
     !actor ? "Unassigned" : actor.type === "user" && actor.id === me.id ? "Me" : actorName(actor);
