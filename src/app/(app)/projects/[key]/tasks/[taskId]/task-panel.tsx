@@ -13,6 +13,7 @@ import { syncTask } from "@/lib/client/board";
 import { fullDate, timeAgo } from "@/lib/client/format";
 import type { Task, TaskStatus } from "@/lib/client/types";
 import { taskHref } from "../../task-card";
+import { TaskActivity } from "./task-activity";
 import { TaskComments } from "./task-comments";
 import { TaskDescription } from "./task-description";
 import { TaskFields, TaskTitle, type CurrentUser, type FieldChange } from "./task-fields";
@@ -193,6 +194,7 @@ export function TaskPanel({
                 onSave={(description) => update({ body: { description }, preview: { description } })}
               />
               <TaskComments taskId={task.id} />
+              <TaskActivity task={task} currentUser={currentUser} />
               <footer className="mt-auto flex items-center justify-between gap-3 border-t pt-3">
                 <p className="text-muted-foreground text-xs">
                   Created <time title={fullDate(task.created_at)}>{timeAgo(task.created_at)}</time> · Updated{" "}
