@@ -2,7 +2,7 @@
 
 import { ArchiveIcon, ArchiveRestoreIcon, LinkIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import useSWR, { useSWRConfig } from "swr";
 import { Button } from "@/components/ui/button";
@@ -36,6 +36,10 @@ export function TaskPanel({
   );
   const [open, setOpen] = useState(true);
   const popupRef = useRef<HTMLDivElement>(null);
+
+  // Cache Components keeps this page's state when it's hidden after closing (React Activity),
+  // so reopening the same task would show it still closed. Reset it as the page hides.
+  useLayoutEffect(() => () => setOpen(true), []);
 
   // A task opened under another project's URL, or by UUID, moves to its own URL.
   useEffect(() => {
