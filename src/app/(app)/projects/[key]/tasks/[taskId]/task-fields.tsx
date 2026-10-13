@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { apiAll } from "@/lib/client/api";
-import { COLUMNS } from "@/lib/client/board";
+import { PRIORITY_LABELS, STATUS_LABELS, TYPE_LABELS } from "@/lib/client/task-labels";
 import type { Agent, Task, TaskStatus } from "@/lib/client/types";
 
 export type CurrentUser = { id: string; email: string };
@@ -20,18 +20,6 @@ type UpdateBody = Partial<Pick<Task, "title" | "description" | "type" | "priorit
 export type FieldChange = { body: UpdateBody; preview: Partial<Task> };
 
 const field = (body: UpdateBody & Partial<Task>): FieldChange => ({ body, preview: body as Partial<Task> });
-
-const STATUS_LABELS = Object.fromEntries(COLUMNS.map((c) => [c.status, c.title])) as Record<TaskStatus, string>;
-
-const PRIORITY_LABELS: Record<Task["priority"], string> = {
-  none: "No priority",
-  low: "Low",
-  medium: "Medium",
-  high: "High",
-  urgent: "Urgent",
-};
-
-const TYPE_LABELS: Record<Task["type"], string> = { feature: "Feature", bug: "Bug", improvement: "Improvement" };
 
 /** The title, edited in place. Enter or leaving the field saves; Escape reverts. */
 export function TaskTitle({
