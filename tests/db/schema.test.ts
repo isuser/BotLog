@@ -312,11 +312,12 @@ describe("agents", () => {
     ).rejects.toThrow(/row-level security/);
 
     const changed = await as(db, claims, async (tx) => ({
+      agents: (await tx.query("update agent set name = 'Rogue', archived_at = now()")).affectedRows,
       keys: (await tx.query("update api_key set revoked_at = now()")).affectedRows,
       profile: (await tx.query("update profile set name = 'x'")).affectedRows,
       visibleKeys: (await tx.query("select id from api_key")).rows.length,
     }));
-    expect(changed).toEqual({ keys: 0, profile: 0, visibleKeys: 0 });
+    expect(changed).toEqual({ agents: 0, keys: 0, profile: 0, visibleKeys: 0 });
   });
 
   test("users cannot create keys for agents they don't own", async () => {
