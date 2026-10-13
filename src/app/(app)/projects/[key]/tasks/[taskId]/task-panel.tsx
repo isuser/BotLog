@@ -164,17 +164,6 @@ export function TaskPanel({
             {task?.short_id ?? taskRef}
             <LinkIcon />
           </Button>
-          {task && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-muted-foreground ml-auto"
-              onClick={() => void setArchived(!archived)}
-            >
-              {archived ? <ArchiveRestoreIcon /> : <ArchiveIcon />}
-              {archived ? "Restore" : "Archive"}
-            </Button>
-          )}
         </header>
 
         <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-4 py-5 sm:px-6">
@@ -188,9 +177,12 @@ export function TaskPanel({
           ) : (
             <>
               {archived && (
-                <p className="bg-muted text-muted-foreground rounded-md px-3 py-2 text-sm">
+                <div className="bg-muted text-muted-foreground flex items-center justify-between gap-3 rounded-md py-1 pr-1 pl-3 text-sm">
                   This task is archived. Restore it to make changes.
-                </p>
+                  <Button variant="outline" size="sm" onClick={() => void setArchived(false)}>
+                    <ArchiveRestoreIcon /> Restore
+                  </Button>
+                </div>
               )}
               <TaskTitle key={task.title} task={task} disabled={archived} onSave={update} />
               <TaskFields task={task} currentUser={currentUser} disabled={archived} onChange={update} onMove={move} />
@@ -201,10 +193,22 @@ export function TaskPanel({
                 onSave={(description) => update({ body: { description }, preview: { description } })}
               />
               <TaskComments taskId={task.id} />
-              <p className="text-muted-foreground mt-auto text-xs">
-                Created <time title={fullDate(task.created_at)}>{timeAgo(task.created_at)}</time> · Updated{" "}
-                <time title={fullDate(task.updated_at)}>{timeAgo(task.updated_at)}</time>
-              </p>
+              <footer className="mt-auto flex items-center justify-between gap-3 border-t pt-3">
+                <p className="text-muted-foreground text-xs">
+                  Created <time title={fullDate(task.created_at)}>{timeAgo(task.created_at)}</time> · Updated{" "}
+                  <time title={fullDate(task.updated_at)}>{timeAgo(task.updated_at)}</time>
+                </p>
+                {!archived && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-muted-foreground -mr-2"
+                    onClick={() => void setArchived(true)}
+                  >
+                    <ArchiveIcon /> Archive
+                  </Button>
+                )}
+              </footer>
             </>
           )}
         </div>
