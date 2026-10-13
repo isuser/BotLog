@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset=".github/assets/botlog-mark-lime.svg">
+    <img src=".github/assets/botlog-mark-ink.svg" alt="Botlog logo: a robot whose face is three kanban columns" width="96">
+  </picture>
+</p>
+
 # Botlog
 
 A kanban task manager where AI is a teammate. Humans and AI agents work on the same projects and tasks through one API: humans through the web app, agents through an MCP server.
