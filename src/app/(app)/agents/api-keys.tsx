@@ -118,10 +118,10 @@ function NewKeyDialog({
     }
   }
 
-  async function copy(key: string) {
+  async function copy(text: string, what: string) {
     try {
-      await navigator.clipboard.writeText(key);
-      toast("Key copied");
+      await navigator.clipboard.writeText(text);
+      toast(`${what} copied`);
     } catch {
       toast.error("Couldn't copy. Select the key and copy it instead.");
     }
@@ -141,14 +141,15 @@ function NewKeyDialog({
       }}
     >
       <DialogTrigger render={trigger} />
-      <DialogContent>
+      {/* A grid track sized to the modal, so the long key and command wrap instead of widening it. */}
+      <DialogContent className="grid-cols-[minmax(0,1fr)]">
         {created ? (
           <div className="flex flex-col gap-4">
             <DialogHeader>
               <DialogTitle>Copy your key</DialogTitle>
               <DialogDescription>
-                This is the only time it&apos;s shown. Your AI client sends it as{" "}
-                <code className="font-mono">Authorization: Bearer &lt;key&gt;</code>.
+                This is the only time it&apos;s shown. Connect your AI client to the MCP server below, sending
+                the key as <code className="font-mono">Authorization: Bearer &lt;key&gt;</code>.
               </DialogDescription>
             </DialogHeader>
             <div className="flex gap-2">
@@ -159,10 +160,11 @@ function NewKeyDialog({
                 className="font-mono"
                 onFocus={(e) => e.currentTarget.select()}
               />
-              <Button variant="outline" size="icon" aria-label="Copy key" onClick={() => void copy(created.key)}>
+              <Button variant="outline" size="icon" aria-label="Copy key" onClick={() => void copy(created.key, "Key")}>
                 <CopyIcon />
               </Button>
             </div>
+            <ConnectCommand apiKey={created.key} onCopy={(command) => void copy(command, "Command")} />
             <DialogFooter>
               <DialogClose render={<Button>Done</Button>} />
             </DialogFooter>
@@ -199,6 +201,27 @@ function NewKeyDialog({
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** The MCP server URL, and the command that adds it to Claude Code with this key. */
+function ConnectCommand({ apiKey, onCopy }: { apiKey: string; onCopy: (command: string) => void }) {
+  const url = `${window.location.origin}/api/mcp`;
+  const command = `claude mcp add --transport http botlog ${url} --header "Authorization: Bearer ${apiKey}"`;
+  return (
+    <div className="flex flex-col gap-2 text-sm">
+      <p className="text-muted-foreground">
+        MCP server: <code className="text-foreground font-mono break-all">{url}</code>. For Claude Code:
+      </p>
+      <div className="flex gap-2">
+        <pre className="bg-muted min-w-0 flex-1 rounded-md px-3 py-2 font-mono text-xs break-all whitespace-pre-wrap">
+          {command}
+        </pre>
+        <Button variant="outline" size="icon" aria-label="Copy command" className="self-start" onClick={() => onCopy(command)}>
+          <CopyIcon />
+        </Button>
+      </div>
+    </div>
   );
 }
 
