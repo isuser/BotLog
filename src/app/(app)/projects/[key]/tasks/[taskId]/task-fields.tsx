@@ -1,14 +1,18 @@
 "use client";
 
+import { CalendarIcon, CircleDotIcon, SignalIcon, TagIcon, UserIcon, type LucideIcon } from "lucide-react";
 import { useState } from "react";
 import useSWR from "swr";
 import { ActorAvatar, actorName, type Actor } from "@/components/actor-avatar";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { apiAll } from "@/lib/client/api";
-import { PRIORITY_LABELS, STATUS_LABELS, TYPE_LABELS } from "@/lib/client/task-labels";
+import { PRIORITY_LABELS, STATUS_COLORS, STATUS_LABELS, TYPE_LABELS } from "@/lib/client/task-labels";
 import type { Agent, Task, TaskStatus } from "@/lib/client/types";
+import { cn } from "@/lib/utils";
+import { PRIORITY_BADGE, TYPE_BADGE } from "../../task-card";
 
 export type CurrentUser = { id: string; email: string };
 
@@ -64,6 +68,32 @@ export function TaskTitle({
   );
 }
 
+/** Every field's control: a filled box, so each value reads as a field beside its label. */
+const CONTROL = "bg-muted hover:bg-accent h-8 w-full max-w-56 border-transparent shadow-none transition-colors";
+
+/** Status as a dot in its column colour, priority and type as the board's badges. */
+function StatusValue({ status }: { status: TaskStatus }) {
+  return (
+    <span className="flex items-center gap-2">
+      <span className={cn("size-2 rounded-full", STATUS_COLORS[status].dot)} />
+      {STATUS_LABELS[status]}
+    </span>
+  );
+}
+
+function BadgeValue<T extends string>({
+  value,
+  labels,
+  badges,
+}: {
+  value: T;
+  labels: Record<T, string>;
+  badges: Partial<Record<T, { label: string; variant: React.ComponentProps<typeof Badge>["variant"] }>>;
+}) {
+  const badge = badges[value];
+  return badge ? <Badge variant={badge.variant}>{badge.label}</Badge> : <span>{labels[value]}</span>;
+}
+
 const assigneeValue = (assignee: Task["assignee"]) => (assignee ? `${assignee.type}:${assignee.id}` : "none");
 
 export function TaskFields({
@@ -97,35 +127,38 @@ export function TaskFields({
     !actor ? "Unassigned" : actor.type === "user" && actor.id === me.id ? "Me" : actorName(actor);
 
   return (
-    <dl className="grid grid-cols-[6.5rem_minmax(0,1fr)] items-center gap-x-3 gap-y-2 text-sm">
-      <Field label="Status">
+    <dl className="grid grid-cols-[7rem_minmax(0,1fr)] items-center gap-x-3 gap-y-1.5 text-sm">
+      <Field label="Status" icon={CircleDotIcon}>
         <FieldSelect
           label="Status"
           value={task.status}
           items={STATUS_LABELS}
+          render={(status) => <StatusValue status={status} />}
           disabled={disabled}
           onChange={(status) => void onMove(status)}
         />
       </Field>
-      <Field label="Priority">
+      <Field label="Priority" icon={SignalIcon}>
         <FieldSelect
           label="Priority"
           value={task.priority}
           items={PRIORITY_LABELS}
+          render={(priority) => <BadgeValue value={priority} labels={PRIORITY_LABELS} badges={PRIORITY_BADGE} />}
           disabled={disabled}
           onChange={(priority) => void onChange(field({ priority }))}
         />
       </Field>
-      <Field label="Type">
+      <Field label="Type" icon={TagIcon}>
         <FieldSelect
           label="Type"
           value={task.type}
           items={TYPE_LABELS}
+          render={(type) => <BadgeValue value={type} labels={TYPE_LABELS} badges={TYPE_BADGE} />}
           disabled={disabled}
           onChange={(type) => void onChange(field({ type }))}
         />
       </Field>
-      <Field label="Assignee">
+      <Field label="Assignee" icon={UserIcon}>
         <Select
           value={assigneeValue(task.assignee)}
           disabled={disabled}
@@ -138,7 +171,7 @@ export function TaskFields({
             });
           }}
         >
-          <SelectTrigger aria-label="Assignee" className="w-full max-w-64 border-transparent bg-transparent shadow-none">
+          <SelectTrigger aria-label="Assignee" className={CONTROL}>
             <SelectValue>
               {(value: string) => <AssigneeOption actor={assignees.get(value) ?? null} label={assigneeLabel} />}
             </SelectValue>
@@ -152,17 +185,20 @@ export function TaskFields({
           </SelectContent>
         </Select>
       </Field>
-      <Field label="Due date">
+      <Field label="Due date" icon={CalendarIcon}>
         <DueDate key={task.due_date} value={task.due_date} disabled={disabled} onChange={onChange} />
       </Field>
     </dl>
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, icon: Icon, children }: { label: string; icon: LucideIcon; children: React.ReactNode }) {
   return (
     <>
-      <dt className="text-muted-foreground">{label}</dt>
+      <dt className="text-muted-foreground flex items-center gap-2">
+        <Icon className="size-4 shrink-0" aria-hidden />
+        {label}
+      </dt>
       <dd className="min-w-0">{children}</dd>
     </>
   );
@@ -172,12 +208,15 @@ function FieldSelect<T extends string>({
   label,
   value,
   items,
+  render = (value) => items[value],
   disabled,
   onChange,
 }: {
   label: string;
   value: T;
   items: Record<T, string>;
+  /** How a value shows, in the field and in the list. Plain text by default. */
+  render?: (value: T) => React.ReactNode;
   disabled: boolean;
   onChange: (value: T) => void;
 }) {
@@ -190,13 +229,13 @@ function FieldSelect<T extends string>({
         if (next !== null && next !== value) onChange(next as T);
       }}
     >
-      <SelectTrigger aria-label={label} className="w-full max-w-64 border-transparent bg-transparent shadow-none">
-        <SelectValue />
+      <SelectTrigger aria-label={label} className={CONTROL}>
+        <SelectValue>{(current: T) => render(current)}</SelectValue>
       </SelectTrigger>
       <SelectContent>
         {(Object.keys(items) as T[]).map((key) => (
           <SelectItem key={key} value={key}>
-            {items[key]}
+            {render(key)}
           </SelectItem>
         ))}
       </SelectContent>
@@ -241,8 +280,8 @@ function DueDate({
       onKeyDown={(e) => {
         if (e.key === "Enter") e.currentTarget.blur();
       }}
-      inputContainerClassName="max-w-64"
-      className="border-transparent bg-transparent shadow-none"
+      inputContainerClassName="max-w-56"
+      className={cn(CONTROL, "max-w-none")}
     />
   );
 }

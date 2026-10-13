@@ -16,10 +16,10 @@ export function ProjectsView() {
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 p-4 sm:p-8">
       <div className="flex items-center justify-between gap-4">
-        <h1 className="text-2xl font-semibold">Projects</h1>
+        <h1 className="font-display text-4xl font-bold tracking-[-0.02em]">Projects</h1>
         <NewProjectDialog
           trigger={
-            <Button>
+            <Button size="lg">
               <PlusIcon /> New project
             </Button>
           }
@@ -27,7 +27,7 @@ export function ProjectsView() {
       </div>
 
       {error ? (
-        <p className="text-danger-foreground">Couldn&apos;t load projects: {error.message}</p>
+        <p className="text-danger">Couldn&apos;t load projects: {error.message}</p>
       ) : !projects ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {[0, 1, 2].map((i) => (

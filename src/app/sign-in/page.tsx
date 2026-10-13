@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { BotlogMark } from "@/components/logo";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { SignInForm } from "./sign-in-form";
 
@@ -10,7 +11,8 @@ export default function SignInPage() {
     <main className="flex flex-1 items-center justify-center p-4">
       <Card className="w-full max-w-sm">
         <CardHeader>
-          <CardTitle className="text-xl">Sign in to Botlog</CardTitle>
+          <BotlogMark className="mb-2 size-10" />
+          <CardTitle className="font-display text-2xl font-bold tracking-[-0.02em]">Sign in to Botlog</CardTitle>
           <CardDescription>A kanban task manager where AI is a teammate.</CardDescription>
         </CardHeader>
         <CardContent>

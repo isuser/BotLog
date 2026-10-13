@@ -23,7 +23,9 @@ export function ActorAvatar({ actor, className }: { actor: Actor; className?: st
       title={actor.type === "agent" ? `${name} (agent)` : name}
       className={cn(
         "flex size-6 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold",
-        actor.type === "agent" ? "bg-info text-info-foreground" : "bg-secondary text-secondary-foreground",
+        actor.type === "agent"
+          ? "bg-agent text-brand-foreground inset-ring-brand-outline inset-ring"
+          : "bg-secondary text-secondary-foreground",
         className,
       )}
     >

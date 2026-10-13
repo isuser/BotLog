@@ -1,9 +1,14 @@
 import type { Metadata } from "next";
-import { Geist_Mono, Inter } from "next/font/google";
+import { Geist_Mono, Inter, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 
 const inter = Inter({
   variable: "--font-inter",
+  subsets: ["latin"],
+});
+
+const spaceGrotesk = Space_Grotesk({
+  variable: "--font-space-grotesk",
   subsets: ["latin"],
 });
 
@@ -23,7 +28,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="en"
       // globals.css sets smooth scrolling; this tells Next.js to skip it during navigations.
       data-scroll-behavior="smooth"
-      className={`${inter.variable} ${geistMono.variable} antialiased`}
+      // Lime, the only theme so far, is dark.
+      className={`${inter.variable} ${spaceGrotesk.variable} ${geistMono.variable} dark antialiased`}
     >
       <body>
         <div className="root flex flex-col">{children}</div>
