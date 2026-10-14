@@ -1,27 +1,22 @@
 "use client";
 
-import { ArchiveIcon, ArchiveRestoreIcon, ArrowLeftIcon, XIcon } from "lucide-react";
+import { ArchiveIcon, ArchiveRestoreIcon, ArrowLeftIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 import useSWR, { useSWRConfig } from "swr";
-import { ActorAvatar, actorName } from "@/components/actor-avatar";
 import { DescriptionEditor } from "@/components/description-editor";
-import { LabelChip } from "@/components/label-chip";
-import { Badge } from "@/components/ui/badge";
+import { TaskGroups } from "@/components/task-groups";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { api, apiAll, ApiRequestError, errorMessage, isConflict } from "@/lib/client/api";
-import { COLUMNS, groupByStatus } from "@/lib/client/board";
-import { EPIC_STATUS_LABELS, STATUS_COLORS } from "@/lib/client/task-labels";
+import { EPIC_STATUS_LABELS } from "@/lib/client/task-labels";
 import type { Epic, EpicStatus, Task } from "@/lib/client/types";
-import { cn } from "@/lib/utils";
 import { QuickAdd } from "../../(board)/quick-add";
-import { PRIORITY_BADGE, taskHref, TYPE_BADGE } from "../../(board)/task-card";
 import { EpicProgress } from "../epic-progress";
 import { AddExistingTasks } from "./add-existing-tasks";
 
@@ -176,73 +171,15 @@ export function EpicView({ projectKey, epicId }: { projectKey: string; epicId: s
           ) : tasks.length === 0 ? (
             <p className="text-muted-foreground text-sm">No tasks in this epic yet.</p>
           ) : (
-            <EpicTasks tasks={tasks} onRemove={archived ? undefined : (task) => void setTaskEpic(task, null)} />
+            <TaskGroups
+              tasks={tasks}
+              removeLabel="Remove from epic"
+              onRemove={archived ? undefined : (task) => void setTaskEpic(task, null)}
+            />
           )}
         </section>
       </div>
     </main>
-  );
-}
-
-/** The epic's tasks under their status, each linking to the task on the board. */
-function EpicTasks({ tasks, onRemove }: { tasks: Task[]; onRemove?: (task: Task) => void }) {
-  const columns = groupByStatus(tasks);
-  return (
-    <div className="flex flex-col gap-4">
-      {COLUMNS.filter(({ status }) => columns[status].length > 0).map(({ status, title }) => (
-        <div key={status} className="flex flex-col gap-1.5">
-          <h3 className={cn("flex items-center gap-2 text-xs font-semibold tracking-[0.06em] uppercase", STATUS_COLORS[status].title)}>
-            <span className={cn("size-2 rounded-full", STATUS_COLORS[status].dot)} />
-            {title}
-            <span className="text-muted-foreground font-normal tabular-nums">{columns[status].length}</span>
-          </h3>
-          <ul className="bg-card divide-y rounded-lg border">
-            {columns[status].map((task) => {
-              const type = TYPE_BADGE[task.type];
-              const priority = PRIORITY_BADGE[task.priority];
-              return (
-                <li key={task.id} className="group flex items-center">
-                  <Link
-                    href={taskHref(task)}
-                    className={cn("hover:bg-accent/50 flex min-w-0 flex-1 items-center gap-3 px-3 py-2 text-sm", status === "done" && "opacity-70")}
-                  >
-                    <span className="text-muted-foreground w-16 shrink-0 font-mono text-xs">{task.short_id}</span>
-                    <span className="min-w-0 flex-1 truncate">{task.title}</span>
-                    <span className="hidden shrink-0 items-center gap-1 sm:flex">
-                      {task.labels.map((label) => (
-                        <LabelChip key={label.id} label={label} />
-                      ))}
-                      {type && <Badge variant={type.variant}>{type.label}</Badge>}
-                      {priority && <Badge variant={priority.variant}>{priority.label}</Badge>}
-                    </span>
-                    {task.assignee ? (
-                      <span className="shrink-0">
-                        <ActorAvatar actor={task.assignee} />
-                        <span className="sr-only">Assigned to {actorName(task.assignee)}</span>
-                      </span>
-                    ) : (
-                      <span className="size-6 shrink-0" />
-                    )}
-                  </Link>
-                  {onRemove && (
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label={`Remove ${task.short_id} from this epic`}
-                      title="Remove from epic"
-                      className="text-muted-foreground mr-1 shrink-0 opacity-60 group-hover:opacity-100"
-                      onClick={() => onRemove(task)}
-                    >
-                      <XIcon />
-                    </Button>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      ))}
-    </div>
   );
 }
 

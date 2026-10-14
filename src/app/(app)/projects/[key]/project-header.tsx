@@ -9,7 +9,7 @@ import { api } from "@/lib/client/api";
 import type { Project } from "@/lib/client/types";
 import { cn } from "@/lib/utils";
 
-/** The project's name and key, and tabs for its Board and Epics. Hidden if the project can't load. */
+/** The project's name and key, and tabs for its Board, List and Epics. Hidden if the project can't load. */
 export function ProjectHeader({ projectKey }: { projectKey: string }) {
   const { data: project, error } = useSWR(`/projects/${projectKey}`, (path: string) =>
     api<{ data: Project }>(path).then((r) => r.data),
@@ -18,9 +18,12 @@ export function ProjectHeader({ projectKey }: { projectKey: string }) {
   if (error) return null;
 
   const base = `/projects/${projectKey}`;
+  const inList = pathname.startsWith(`${base}/list`);
+  const inEpics = pathname.startsWith(`${base}/epics`);
   const tabs = [
-    { href: base, label: "Board", active: !pathname.startsWith(`${base}/epics`) },
-    { href: `${base}/epics`, label: "Epics", active: pathname.startsWith(`${base}/epics`) },
+    { href: base, label: "Board", active: !inList && !inEpics },
+    { href: `${base}/list`, label: "List", active: inList },
+    { href: `${base}/epics`, label: "Epics", active: inEpics },
   ];
 
   return (

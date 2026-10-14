@@ -35,3 +35,18 @@ export const EPIC_STATUS_BADGE: Record<EpicStatus, "default" | "secondary" | "su
   done: "success",
   canceled: "outline",
 };
+
+/** Board badges: only the types and priorities worth calling out get one. */
+export const TYPE_BADGE: Partial<Record<Task["type"], { label: string; variant: "danger" | "info" }>> = {
+  bug: { label: "Bug", variant: "danger" },
+  improvement: { label: "Improvement", variant: "info" },
+};
+
+export const PRIORITY_BADGE: Partial<
+  Record<Task["priority"], { label: string; variant: "danger" | "warning" | "secondary" }>
+> = {
+  urgent: { label: "Urgent", variant: "danger" },
+  high: { label: "High", variant: "warning" },
+  medium: { label: "Medium", variant: "secondary" },
+  low: { label: "Low", variant: "secondary" },
+};

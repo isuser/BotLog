@@ -109,3 +109,10 @@ export function syncTask(tasks: Task[], task: Task): Task[] {
   const index = rest.findIndex((t) => compareBoardOrder(task, t) < 0);
   return index === -1 ? [...rest, task] : [...rest.slice(0, index), task, ...rest.slice(index)];
 }
+
+/** Which project page a task panel opens over. */
+export type TaskView = "board" | "list";
+
+/** A task's URL, open over its project's board (the shareable link) or list. */
+export const taskHref = (task: Pick<Task, "project_key" | "short_id">, view: TaskView = "board") =>
+  `/projects/${task.project_key}${view === "list" ? "/list" : ""}/tasks/${task.short_id}`;
