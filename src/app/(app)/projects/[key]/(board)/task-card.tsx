@@ -4,6 +4,7 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useParams, useRouter } from "next/navigation";
 import { ActorAvatar, actorName } from "@/components/actor-avatar";
+import { LabelChip } from "@/components/label-chip";
 import { Badge } from "@/components/ui/badge";
 import type { Task } from "@/lib/client/types";
 import { cn } from "@/lib/utils";
@@ -46,8 +47,18 @@ export function TaskCard({
         dragging && "ring-ring/50 rotate-1 shadow-lg ring-2",
       )}
     >
-      <span className="text-muted-foreground font-mono text-xs">{task.short_id}</span>
+      <span className="text-muted-foreground flex items-center justify-between gap-2 text-xs">
+        <span className="font-mono">{task.short_id}</span>
+        {task.epic && <span className="truncate">{task.epic.title}</span>}
+      </span>
       <p className="line-clamp-3 leading-snug break-words">{task.title}</p>
+      {task.labels.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {task.labels.map((label) => (
+            <LabelChip key={label.id} label={label} />
+          ))}
+        </div>
+      )}
       {(type || priority || task.assignee) && (
         <div className="flex items-center gap-1.5">
           {type && <Badge variant={type.variant}>{type.label}</Badge>}

@@ -9,8 +9,13 @@ import * as agentKeys from "@/app/api/v1/agents/[id]/api-keys/route";
 import * as agentRestore from "@/app/api/v1/agents/[id]/restore/route";
 import * as agentRoute from "@/app/api/v1/agents/[id]/route";
 import * as agents from "@/app/api/v1/agents/route";
+import * as epicRestore from "@/app/api/v1/epics/[id]/restore/route";
+import * as epicRoute from "@/app/api/v1/epics/[id]/route";
+import * as labelRoute from "@/app/api/v1/labels/[id]/route";
 import * as me from "@/app/api/v1/me/route";
 import * as meTasks from "@/app/api/v1/me/tasks/route";
+import * as projectEpics from "@/app/api/v1/projects/[id]/epics/route";
+import * as projectLabels from "@/app/api/v1/projects/[id]/labels/route";
 import * as projectRoute from "@/app/api/v1/projects/[id]/route";
 import * as projectTasks from "@/app/api/v1/projects/[id]/tasks/route";
 import * as projects from "@/app/api/v1/projects/route";
@@ -249,6 +254,106 @@ describe("comments, activity and my tasks", () => {
     const titles = res.body.data.map((t: Task) => t.title);
     expect(titles).toContain("Mine");
     expect(titles).not.toContain("First");
+  });
+});
+
+describe("epics and labels", () => {
+  const post = (handler: typeof projectEpics.POST, body: unknown, token = alice.token) =>
+    call(handler, { method: "POST", params: { id: PROJECT }, token, body });
+
+  test("epics show progress from their active tasks", async () => {
+    const created = await post(projectEpics.POST, { title: "Launch", target_date: "2026-12-01" });
+    expect(created.status, JSON.stringify(created.body)).toBe(201);
+    const epic = created.body.data;
+    expect(epic).toMatchObject({ title: "Launch", status: "planned", project_key: PROJECT, progress: { total: 0, percent_done: 0 } });
+
+    await createTask({ title: "Epic task 1", epic_id: epic.id, status: "done" });
+    const second = await createTask({ title: "Epic task 2", epic_id: epic.id });
+    await createTask({ title: "Epic task 3", epic_id: epic.id, status: "done" });
+    await call(taskRoute.DELETE, { method: "DELETE", params: { id: second.id }, token: alice.token });
+
+    const read = await call(epicRoute.GET, { params: { id: epic.id }, token: alice.token });
+    expect(read.body.data.progress).toEqual({ backlog: 0, todo: 0, in_progress: 0, done: 2, total: 2, percent_done: 100 });
+
+    const list = await call(projectEpics.GET, { params: { id: PROJECT }, token: alice.token });
+    expect(list.body.data.map((e: { id: string }) => e.id)).toContain(epic.id);
+    const inEpic = await listTitles(`epic_id=${epic.id}`);
+    expect(inEpic.sort()).toEqual(["Epic task 1", "Epic task 3"]);
+  });
+
+  test("epics can be edited, archived and restored; archived ones take no new tasks", async () => {
+    const epic = (await post(projectEpics.POST, { title: "Old epic" })).body.data;
+    const edited = await call(epicRoute.PATCH, { method: "PATCH", params: { id: epic.id }, token: alice.token, body: { status: "in_progress" } });
+    expect(edited.body.data.status).toBe("in_progress");
+
+    const archived = await call(epicRoute.DELETE, { method: "DELETE", params: { id: epic.id }, token: alice.token });
+    expect(archived.body.data.archived_at).not.toBeNull();
+    const active = await call(projectEpics.GET, { params: { id: PROJECT }, token: alice.token });
+    expect(active.body.data.map((e: { id: string }) => e.id)).not.toContain(epic.id);
+
+    const blocked = await call(projectTasks.POST, { method: "POST", params: { id: PROJECT }, token: alice.token, body: { title: "x", epic_id: epic.id } });
+    expect(blocked.status).toBe(400);
+    expect(blocked.body.error.code).toBe("archived");
+    expect((await call(epicRoute.PATCH, { method: "PATCH", params: { id: epic.id }, token: alice.token, body: { title: "y" } })).status).toBe(400);
+
+    const restored = await call(epicRestore.POST, { method: "POST", params: { id: epic.id }, token: alice.token });
+    expect(restored.body.data.archived_at).toBeNull();
+  });
+
+  test("labels are per project, unique by name ignoring case", async () => {
+    const bug = await post(projectLabels.POST, { name: "Backend", color: "#84cc16" });
+    expect(bug.status, JSON.stringify(bug.body)).toBe(201);
+    const dupe = await post(projectLabels.POST, { name: "backend" });
+    expect(dupe.status).toBe(409);
+    expect(dupe.body.error.message).toMatch(/label with this name/);
+    expect((await post(projectLabels.POST, { name: "x", color: "red" })).status).toBe(400);
+
+    const renamed = await call(labelRoute.PATCH, { method: "PATCH", params: { id: bug.body.data.id }, token: alice.token, body: { name: "API" } });
+    expect(renamed.body.data).toMatchObject({ name: "API", color: "#84cc16" });
+    const list = await call(projectLabels.GET, { params: { id: PROJECT }, token: alice.token });
+    expect(list.body.data.map((l: { name: string }) => l.name)).toContain("API");
+  });
+
+  test("tasks take labels on create and edit, and a labels-only edit is version-checked", async () => {
+    const ui = (await post(projectLabels.POST, { name: "UI" })).body.data;
+    const docs = (await post(projectLabels.POST, { name: "Docs" })).body.data;
+
+    const task = await createTask({ title: "Labelled", label_ids: [ui.id, ui.id] });
+    expect(task).toMatchObject({ labels: [{ id: ui.id, name: "UI" }] });
+
+    const edited = await call(taskRoute.PATCH, { method: "PATCH", params: { id: task.id }, token: alice.token, body: { label_ids: [docs.id, ui.id], version: task.version } });
+    expect(edited.status, JSON.stringify(edited.body)).toBe(200);
+    expect(edited.body.data.labels.map((l: { name: string }) => l.name)).toEqual(["Docs", "UI"]);
+    expect(edited.body.data.version).toBe(task.version + 1);
+
+    const stale = await call(taskRoute.PATCH, { method: "PATCH", params: { id: task.id }, token: alice.token, body: { label_ids: [], version: task.version } });
+    expect(stale.status).toBe(409);
+
+    expect(await listTitles(`label=${docs.id}`)).toEqual(["Labelled"]);
+
+    const activity = await call(taskActivity.GET, { params: { id: task.id }, token: alice.token });
+    expect(activity.body.data.filter((a: { action: string }) => a.action === "label_added")).toHaveLength(2);
+
+    // Deleting a label takes it off its tasks.
+    await call(labelRoute.DELETE, { method: "DELETE", params: { id: docs.id }, token: alice.token });
+    const after = await call(taskRoute.GET, { params: { id: task.id }, token: alice.token });
+    expect(after.body.data.labels.map((l: { name: string }) => l.name)).toEqual(["UI"]);
+  });
+
+  test("labels and epics from another project or workspace are rejected", async () => {
+    const other = await call(projects.POST, { method: "POST", token: bob.token, body: { name: "Bob's", key: "BOB" } });
+    expect(other.status, JSON.stringify(other.body)).toBe(201);
+    const bobLabel = await call(projectLabels.POST, { method: "POST", params: { id: "BOB" }, token: bob.token, body: { name: "Mine" } });
+    const bobEpic = await call(projectEpics.POST, { method: "POST", params: { id: "BOB" }, token: bob.token, body: { title: "Mine" } });
+
+    const withLabel = await call(projectTasks.POST, { method: "POST", params: { id: PROJECT }, token: alice.token, body: { title: "x", label_ids: [bobLabel.body.data.id] } });
+    expect(withLabel.status).toBe(400);
+    expect(withLabel.body.error.code).toBe("invalid_reference");
+    const withEpic = await call(projectTasks.POST, { method: "POST", params: { id: PROJECT }, token: alice.token, body: { title: "x", epic_id: bobEpic.body.data.id } });
+    expect(withEpic.status).toBe(400);
+
+    expect((await call(epicRoute.GET, { params: { id: bobEpic.body.data.id }, token: alice.token })).status).toBe(404);
+    expect((await call(labelRoute.PATCH, { method: "PATCH", params: { id: bobLabel.body.data.id }, token: alice.token, body: { name: "z" } })).status).toBe(404);
   });
 });
 

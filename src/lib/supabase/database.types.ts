@@ -563,7 +563,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      set_task_labels: {
+        Args: { p_label_ids: string[]; p_task_id: string; p_version: number }
+        Returns: number
+      }
     }
     Enums: {
       actor_type: "human" | "ai" | "system"

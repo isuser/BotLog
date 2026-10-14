@@ -15,6 +15,8 @@ const entry = (action: string, changes: Record<string, unknown> = {}): Activity 
 const known = new Map([
   ["agent:g1", "Claude"],
   ["user:u1", "you"],
+  ["label:l1", "UI"],
+  ["epic:e1", "Launch"],
 ]);
 const names: NameLookup = (type, id) => known.get(`${type}:${id}`);
 const change = (from: unknown, to: unknown) => ({ from, to });
@@ -72,6 +74,13 @@ describe("describeActivity", () => {
     expect(describeActivity(entry("updated", { assignee_user_id: change(null, "other") }), names)).toBe(
       "assigned it to someone",
     );
+  });
+
+  test("names labels and epics when it knows them", () => {
+    expect(describeActivity(entry("label_added", { label_id: "l1" }), names)).toBe("added the label “UI”");
+    expect(describeActivity(entry("label_removed", { label_id: "gone" }), names)).toBe("removed a label");
+    expect(describeActivity(entry("updated", { epic_id: change(null, "e1") }), names)).toBe("moved it to the epic “Launch”");
+    expect(describeActivity(entry("updated", { epic_id: change("e1", null) }), names)).toBe("took it out of its epic");
   });
 
   test("leaves out comments and changes to fields it doesn't show", () => {

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import useSWR, { useSWRConfig } from "swr";
+import { DescriptionEditor } from "@/components/description-editor";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -15,7 +16,6 @@ import type { Task, TaskStatus } from "@/lib/client/types";
 import { taskHref } from "../../task-card";
 import { TaskActivity } from "./task-activity";
 import { TaskComments } from "./task-comments";
-import { TaskDescription } from "./task-description";
 import { TaskFields, TaskTitle, type CurrentUser, type FieldChange } from "./task-fields";
 
 /** Side panel on wide screens, full-screen on phones. Closing it goes back to the board. */
@@ -171,7 +171,8 @@ export function TaskPanel({
           </Button>
         </header>
 
-        <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-4 py-5 sm:px-6">
+        {/* Children keep their size (shrink-0) so a long panel scrolls instead of squeezing them. */}
+        <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-4 py-5 sm:px-6 [&>*]:shrink-0">
           {error ? (
             <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center">
               <p className="font-medium">{notFound ? "Task not found" : "Couldn't load this task"}</p>
@@ -191,7 +192,7 @@ export function TaskPanel({
               )}
               <TaskTitle key={task.title} task={task} disabled={archived} onSave={update} />
               <TaskFields task={task} currentUser={currentUser} disabled={archived} onChange={update} onMove={move} />
-              <TaskDescription
+              <DescriptionEditor
                 key={task.id}
                 description={task.description}
                 disabled={archived}

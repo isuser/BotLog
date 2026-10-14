@@ -32,7 +32,7 @@ export function AgentsView({ currentUser }: { currentUser: SessionUser }) {
   const { data: archived } = useSWR(showArchived ? "/agents?archived=true" : null, fetchAll);
 
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 overflow-y-auto p-4 sm:p-8">
+    <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 overflow-y-auto p-4 sm:p-8 [&>*]:shrink-0">
       <div className="flex items-center justify-between gap-4">
         <h1 className="font-display text-4xl font-bold tracking-[-0.02em]">Agents</h1>
         <AgentDialog

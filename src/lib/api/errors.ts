@@ -86,6 +86,9 @@ function alreadyExistsMessage(error: PostgrestError): string {
   if (error.message.includes("project_workspace_id_key_key")) {
     return "A project with this key already exists.";
   }
+  if (error.message.includes("label_project_name_idx")) {
+    return "A label with this name already exists in this project.";
+  }
   return "This already exists.";
 }
 

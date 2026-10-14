@@ -21,7 +21,10 @@ export async function listTasks(
   const limit = parseLimit(url.searchParams);
   const cursor = decodeCursor(url.searchParams, ORDER.length);
 
-  let query = db.from("task").select(TASK_SELECT);
+  // Filtering by label joins task_label as an inner embed, which leaves out tasks without it.
+  const select = filters.label ? `${TASK_SELECT}, label_filter:task_label!inner(label_id)` : TASK_SELECT;
+  let query = db.from("task").select(select);
+  if (filters.label) query = query.eq("label_filter.label_id", filters.label);
   if (scope.projectId) query = query.eq("project_id", scope.projectId);
   if (scope.assignedTo) query = assignedTo(query, scope.assignedTo);
 

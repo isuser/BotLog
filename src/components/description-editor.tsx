@@ -6,8 +6,8 @@ import { Markdown } from "@/components/markdown";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 
-/** Markdown description: rendered, or edited with Save and Cancel. */
-export function TaskDescription({
+/** A task or epic description in Markdown: rendered, or edited with Save and Cancel. */
+export function DescriptionEditor({
   description,
   disabled,
   onSave,
@@ -29,9 +29,9 @@ export function TaskDescription({
   }
 
   return (
-    <section className="flex flex-col gap-2" aria-labelledby="task-description">
+    <section className="flex flex-col gap-2" aria-labelledby="description-heading">
       <div className="flex items-center justify-between">
-        <h3 id="task-description" className="text-sm font-semibold">
+        <h3 id="description-heading" className="text-sm font-semibold">
           Description
         </h3>
         {draft === null && description && !disabled && (

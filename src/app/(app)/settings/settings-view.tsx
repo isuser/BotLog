@@ -29,7 +29,7 @@ export function SettingsView() {
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-8 overflow-y-auto p-4 sm:p-8">
+    <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-8 overflow-y-auto p-4 sm:p-8 [&>*]:shrink-0">
       <h1 className="font-display text-4xl font-bold tracking-[-0.02em]">Settings</h1>
       {error ? (
         <p className="text-danger">Couldn&apos;t load your profile: {error.message}</p>
