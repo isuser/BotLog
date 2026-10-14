@@ -24,6 +24,7 @@ import * as taskComments from "@/app/api/v1/tasks/[id]/comments/route";
 import * as taskMove from "@/app/api/v1/tasks/[id]/move/route";
 import * as taskRestore from "@/app/api/v1/tasks/[id]/restore/route";
 import * as taskRoute from "@/app/api/v1/tasks/[id]/route";
+import * as tasksRoute from "@/app/api/v1/tasks/route";
 import { generateApiKey } from "@/lib/api/api-keys";
 import { call, createTestUser, deleteTestUsers, signingKeyIsLive, type TestUser } from "./harness";
 
@@ -354,6 +355,28 @@ describe("epics and labels", () => {
 
     expect((await call(epicRoute.GET, { params: { id: bobEpic.body.data.id }, token: alice.token })).status).toBe(404);
     expect((await call(labelRoute.PATCH, { method: "PATCH", params: { id: bobLabel.body.data.id }, token: alice.token, body: { name: "z" } })).status).toBe(404);
+  });
+});
+
+describe("search", () => {
+  test("q finds tasks by short ID, bare number or title words, in a project and across projects", async () => {
+    const found = await createTask({ title: "Searchable 100%_literal thing" });
+    await createTask({ title: "Searchable decoy 100 percent" });
+
+    expect(await listTitles(`q=${encodeURIComponent(found.short_id.toLowerCase())}`)).toEqual([found.title]);
+    expect(await listTitles(`q=${found.short_id.split("-")[1]}`)).toEqual([found.title]);
+    expect(await listTitles(`q=${encodeURIComponent("100%_lit")}`)).toEqual([found.title]);
+    expect((await listTitles("q=searchable")).sort()).toEqual(["Searchable 100%_literal thing", "Searchable decoy 100 percent"]);
+
+    const across = await call(tasksRoute.GET, { path: `/api/v1/tasks?q=${found.short_id}`, token: alice.token });
+    expect(across.status, JSON.stringify(across.body)).toBe(200);
+    expect(across.body.data.map((t: Task) => t.id)).toEqual([found.id]);
+  });
+
+  test("workspace-wide search only sees your own workspace", async () => {
+    const res = await call(tasksRoute.GET, { path: "/api/v1/tasks?q=searchable", token: bob.token });
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual([]);
   });
 });
 

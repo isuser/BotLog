@@ -158,6 +158,7 @@ export function createBotlogServer({ apiKey, agentId }: { apiKey: string; agentI
         assignee: assignee.optional(),
         epic_id: z.string().optional().describe('Epic UUID, or "none" for tasks without an epic'),
         label: z.string().min(1).optional().describe("Only tasks with this label (name or UUID)"),
+        q: z.string().min(1).max(200).optional().describe("Search: a short ID like BOT-42, or words in the title"),
         cursor,
       }),
       annotations: { readOnlyHint: true },

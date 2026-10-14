@@ -27,3 +27,18 @@ export function parseProjectRef(ref: string): ProjectRef {
 }
 
 export const shortId = (key: string, number: number) => `${key}-${number}`;
+
+/** A search query read as a task reference: "BOT-42" (any case) or a bare number "42". */
+export function parseTaskQuery(q: string): { key?: string; number: number } | null {
+  const value = q.trim();
+  const match = SHORT_ID.exec(value);
+  if (match) return { key: match[1].toUpperCase(), number: Number(match[2]) };
+  if (/^\d{1,9}$/.test(value)) return { number: Number(value) };
+  return null;
+}
+
+/**
+ * Escapes LIKE wildcards so user text is matched literally. PostgREST turns `*` into `%` and
+ * has no escape for it, so `*` becomes `_` (any one character), the closest to a literal `*`.
+ */
+export const escapeLike = (value: string) => value.replace(/[\\%_]/g, (c) => `\\${c}`).replaceAll("*", "_");

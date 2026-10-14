@@ -90,7 +90,7 @@ export function TaskList({ projectKey }: { projectKey: string }) {
   return (
     <main className="mx-auto flex min-h-0 w-full max-w-[77rem] flex-1 flex-col gap-3 px-4 pb-4">
       <div className="max-w-md">
-        <QuickAdd columnTitle="the backlog" onAdd={addTask} />
+        <QuickAdd columnTitle="the backlog" onAdd={addTask} focusOnShortcut />
       </div>
       {tasks.length === 0 ? (
         <div className="text-muted-foreground flex flex-col items-center gap-1 rounded-xl border border-dashed py-16 text-center text-sm">

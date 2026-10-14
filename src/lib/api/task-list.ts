@@ -1,6 +1,7 @@
 import type { z } from "zod";
 import type { Actor, Db } from "./auth";
 import { fromPostgrest } from "./errors";
+import { escapeLike, parseTaskQuery } from "./ids";
 import { decodeCursor, keysetFilter, page, parseLimit } from "./pagination";
 import type { taskListFilters } from "./schemas";
 import { serializeTask, TASK_SELECT, type TaskRow } from "./tasks";
@@ -25,6 +26,16 @@ export async function listTasks(
   const select = filters.label ? `${TASK_SELECT}, label_filter:task_label!inner(label_id)` : TASK_SELECT;
   let query = db.from("task").select(select);
   if (filters.label) query = query.eq("label_filter.label_id", filters.label);
+  if (filters.q) {
+    // A short ID (BOT-42) or a bare number finds that task; anything else searches titles.
+    const ref = parseTaskQuery(filters.q);
+    if (ref) {
+      query = query.eq("number", ref.number);
+      if (ref.key) query = query.eq("project.key", ref.key);
+    } else {
+      query = query.ilike("title", `%${escapeLike(filters.q)}%`);
+    }
+  }
   if (scope.projectId) query = query.eq("project_id", scope.projectId);
   if (scope.assignedTo) query = assignedTo(query, scope.assignedTo);
 
