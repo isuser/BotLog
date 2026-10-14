@@ -165,6 +165,31 @@ describe("set_task_labels", () => {
   });
 });
 
+describe("realtime", () => {
+  test("publishes only activity_log and task, never secrets or profiles", async () => {
+    const tables = (
+      await db.query<{ tablename: string }>(
+        "select tablename from pg_publication_tables where pubname = 'supabase_realtime' order by tablename",
+      )
+    ).rows.map((r) => r.tablename);
+    expect(tables).toEqual(["activity_log", "task"]);
+  });
+
+  test("keeps the default replica identity, so update and delete events carry only the key", async () => {
+    // Realtime doesn't apply RLS to DELETE events: with the default identity they hold just
+    // the row's UUID. `replica identity full` would put whole old rows in those events.
+    const identities = (
+      await db.query<{ relname: string; relreplident: string }>(
+        "select relname, relreplident from pg_class where oid in ('public.task'::regclass, 'public.activity_log'::regclass) order by relname",
+      )
+    ).rows;
+    expect(identities).toEqual([
+      { relname: "activity_log", relreplident: "d" },
+      { relname: "task", relreplident: "d" },
+    ]);
+  });
+});
+
 describe("profile", () => {
   test("defaults to the Lime theme and lets its owner change theme and name", async () => {
     const { userId } = await setup();
