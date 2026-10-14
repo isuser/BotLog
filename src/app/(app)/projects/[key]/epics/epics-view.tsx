@@ -32,7 +32,7 @@ export function EpicsView({ projectKey }: { projectKey: string }) {
   const { data: epics, error } = useSWR(key, (path: string) => apiAll<Epic>(path));
 
   return (
-    <main className="mx-auto flex w-full max-w-[77rem] flex-1 flex-col gap-4 overflow-y-auto px-4 pb-8">
+    <main className="mx-auto flex w-full max-w-[77rem] flex-1 flex-col gap-4 overflow-y-auto px-4 pb-8 [&>*]:shrink-0">
       <div className="flex items-center justify-between gap-4">
         <p className="text-muted-foreground text-sm">Group related tasks into epics and follow their progress.</p>
         <NewEpicDialog projectKey={projectKey} />
