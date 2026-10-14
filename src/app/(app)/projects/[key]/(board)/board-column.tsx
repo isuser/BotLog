@@ -43,7 +43,7 @@ export function BoardColumn({
         </span>
       </header>
 
-      <QuickAdd columnTitle={title} onAdd={(t) => onAdd(status, t)} />
+      <QuickAdd columnTitle={title} onAdd={(t) => onAdd(status, t)} focusOnShortcut={status === "backlog"} />
 
       <SortableContext id={status} items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
         <ul

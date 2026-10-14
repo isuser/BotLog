@@ -1,13 +1,31 @@
 "use client";
 
 import { PlusIcon } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
+import { NEW_TASK_EVENT } from "@/lib/client/shortcuts";
 
 /** One-line task creation at the top of a column. Enter adds, Escape clears. */
-export function QuickAdd({ columnTitle, onAdd }: { columnTitle: string; onAdd: (title: string) => Promise<void> }) {
+export function QuickAdd({
+  columnTitle,
+  onAdd,
+  focusOnShortcut = false,
+}: {
+  columnTitle: string;
+  onAdd: (title: string) => Promise<void>;
+  /** Take focus when the `c` (new task) shortcut fires. One box per page should. */
+  focusOnShortcut?: boolean;
+}) {
   const [title, setTitle] = useState("");
   const [pending, setPending] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!focusOnShortcut) return;
+    const focus = () => inputRef.current?.focus();
+    window.addEventListener(NEW_TASK_EVENT, focus);
+    return () => window.removeEventListener(NEW_TASK_EVENT, focus);
+  }, [focusOnShortcut]);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -25,6 +43,7 @@ export function QuickAdd({ columnTitle, onAdd }: { columnTitle: string; onAdd: (
   return (
     <form onSubmit={submit}>
       <Input
+        ref={inputRef}
         aria-label={`Add a task to ${columnTitle}`}
         placeholder="Add a task"
         leadingIcon={<PlusIcon />}

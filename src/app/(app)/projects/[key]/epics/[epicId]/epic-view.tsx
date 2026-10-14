@@ -161,7 +161,7 @@ export function EpicView({ projectKey, epicId }: { projectKey: string; epicId: s
           {!archived && (
             <div className="flex items-start gap-2">
               <div className="min-w-0 flex-1">
-                <QuickAdd columnTitle="this epic" onAdd={addTask} />
+                <QuickAdd columnTitle="this epic" onAdd={addTask} focusOnShortcut />
               </div>
               <AddExistingTasks projectKey={projectKey} epicId={epicId} onAdd={(task) => setTaskEpic(task, epicId)} />
             </div>

@@ -10,12 +10,15 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api, ApiRequestError, isConflict } from "@/lib/client/api";
-import { syncTask, taskHref, type TaskView } from "@/lib/client/board";
+import { COLUMNS, syncTask, taskHref, type TaskView } from "@/lib/client/board";
+import { isPlainKey, isTypingTarget, useKeydown } from "@/lib/client/shortcuts";
 import { fullDate, timeAgo } from "@/lib/client/format";
 import type { Task, TaskStatus } from "@/lib/client/types";
 import { TaskActivity } from "./task-activity";
 import { TaskComments } from "./task-comments";
 import { TaskFields, TaskTitle, type CurrentUser, type FieldChange } from "./task-fields";
+
+const COLUMN_TITLES = Object.fromEntries(COLUMNS.map((c) => [c.status, c.title])) as Record<TaskStatus, string>;
 
 /** Side panel on wide screens, full-screen on phones. Closing it goes back to the board or list. */
 export function TaskPanel({
@@ -144,6 +147,28 @@ export function TaskPanel({
 
   const notFound = error instanceof ApiRequestError && (error.status === 404 || error.status === 400);
   const archived = Boolean(task?.archived_at);
+
+  // 1–4 move the open task to a column, i assigns it to you, u unassigns it.
+  useKeydown(
+    (e) => {
+      if (!task || archived || !isPlainKey(e) || isTypingTarget(e.target)) return;
+      const status = COLUMNS[Number(e.key) - 1]?.status;
+      if (status) {
+        e.preventDefault();
+        if (status !== task.status) void move(status).then((ok) => ok && toast(`Moved to ${COLUMN_TITLES[status]}`));
+      } else if (e.key === "i" || e.key === "u") {
+        e.preventDefault();
+        const mine = e.key === "i";
+        if (mine ? task.assignee?.type === "user" && task.assignee.id === currentUser.id : !task.assignee) return;
+        const assignee = mine ? { type: "user" as const, id: currentUser.id, name: "", email: currentUser.email } : null;
+        void update({
+          body: { assignee: assignee && { type: "user", id: currentUser.id } },
+          preview: { assignee },
+        }).then((ok) => ok && toast(mine ? "Assigned to you" : "Unassigned"));
+      }
+    },
+    open,
+  );
 
   return (
     <Sheet

@@ -98,6 +98,8 @@ export const taskListFilters = z.object({
   epic_id: z.union([z.literal("none"), z.uuid()]).optional(),
   /** Only tasks with this label. */
   label: z.uuid().optional(),
+  /** Text search: a short ID like BOT-42 (or just 42), or words in the title. */
+  q: z.string().trim().min(1).max(200).optional(),
   archived: z.enum(["true", "false"]).optional(),
 });
 

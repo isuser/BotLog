@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { ApiError } from "./errors";
-import { parseProjectRef, parseTaskRef } from "./ids";
+import { escapeLike, parseProjectRef, parseTaskQuery, parseTaskRef } from "./ids";
 
 const uuid = "0AF707C6-8459-4925-8506-9360AD1636BA";
 
@@ -29,5 +29,29 @@ describe("parseProjectRef", () => {
     for (const ref of ["B", "1BOT", "BOT-1", "ABCDE"]) {
       expect(() => parseProjectRef(ref)).toThrow(ApiError);
     }
+  });
+});
+
+describe("parseTaskQuery", () => {
+  test("reads short IDs in any case, and bare numbers", () => {
+    expect(parseTaskQuery("bot-42")).toEqual({ key: "BOT", number: 42 });
+    expect(parseTaskQuery(" 7 ")).toEqual({ number: 7 });
+  });
+
+  test("anything else is a title search", () => {
+    expect(parseTaskQuery("login bug")).toBeNull();
+    expect(parseTaskQuery("BOT")).toBeNull();
+    expect(parseTaskQuery("BOT-")).toBeNull();
+  });
+});
+
+describe("escapeLike", () => {
+  test("never lets * act as PostgREST's match-anything wildcard", () => {
+    expect(escapeLike("a*b")).toBe("a_b");
+    expect(escapeLike("*")).toBe("_");
+  });
+
+  test("matches % and _ literally", () => {
+    expect(escapeLike("100%_done\\")).toBe("100\\%\\_done\\\\");
   });
 });
