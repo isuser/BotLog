@@ -45,3 +45,16 @@ jobs:
           # Build check only: placeholders, not real project values.
           NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci-placeholder
+
+  docker:
+    name: Docker image builds
+    needs: secret-scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build the image (not pushed)
+        run: |
+          docker build \
+            --build-arg NEXT_PUBLIC_SUPABASE_URL=https://placeholder.supabase.co \
+            --build-arg NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_ci-placeholder \
+            -t botlog:ci .

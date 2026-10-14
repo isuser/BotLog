@@ -21,6 +21,8 @@ export class ApiError extends Error {
     readonly code: ErrorCode,
     message: string,
     readonly details?: unknown,
+    /** Extra response headers, e.g. Retry-After on a 429. */
+    readonly headers?: Record<string, string>,
   ) {
     super(message);
   }
@@ -54,7 +56,7 @@ export function errorResponse(error: unknown): Response {
 
   return Response.json(body, {
     status: apiError?.status ?? 500,
-    headers: { "cache-control": "no-store" },
+    headers: { "cache-control": "no-store", ...apiError?.headers },
   });
 }
 

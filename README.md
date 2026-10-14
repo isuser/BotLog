@@ -37,6 +37,10 @@ pnpm dev
 
 Database changes live in `supabase/migrations` as Supabase CLI migrations.
 
+## Self-hosting
+
+Botlog runs on Vercel or anywhere Docker runs (`Dockerfile`, `docker-compose.yml`), with a Supabase project. The full guide (Supabase setup, environment, HTTPS, backups, updates) is in the app at **Help → Self-hosting** (`/help/self-hosting`).
+
 ## Security
 
 Never commit secrets. `.env*` files are gitignored and only `.env.example` (placeholders) is in the repo. CI runs a [gitleaks](https://github.com/gitleaks/gitleaks) secret scan on every push and fails the build if a key is found.

@@ -1,13 +1,15 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { PGlite, type Transaction } from "@electric-sql/pglite";
+import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 
 const root = join(import.meta.dirname, "..", "..");
 const migrationsDir = join(root, "supabase", "migrations");
 
 /** Fresh in-memory Postgres with the Supabase stub and every migration applied in order. */
 export async function createDb(): Promise<PGlite> {
-  const db = new PGlite();
+  // Extensions Supabase provides that migrations use.
+  const db = new PGlite({ extensions: { pg_trgm } });
   await db.exec(readFileSync(join(import.meta.dirname, "supabase-stub.sql"), "utf8"));
   const files = readdirSync(migrationsDir).filter((f) => f.endsWith(".sql")).sort();
   for (const file of files) {

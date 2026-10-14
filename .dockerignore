@@ -1,0 +1,11 @@
+# Keep secrets and local state out of the build context.
+.env*
+!.env.example
+.private
+.git
+node_modules
+.next
+coverage
+supabase/.temp
+*.pem
+.DS_Store

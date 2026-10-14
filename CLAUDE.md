@@ -6,7 +6,7 @@ Kanban task manager where AI is a teammate. Humans (web app) and AI agents (MCP)
 
 ## Current scope
 
-MVP only. Do not build v1.1 or Future items unless asked: epics/labels screens, list view, My tasks, realtime, command menu, rate limits, export, Dockerfile.
+The MVP and most of v1.1 are built. Build what the owner asks for; don't start unrequested features (teams, invites, OAuth, a staging environment and the like) on your own.
 
 ## Stack
 
@@ -27,6 +27,14 @@ MVP only. Do not build v1.1 or Future items unless asked: epics/labels screens, 
 - **Short IDs** (`BOT-42`) are accepted anywhere a task ID is; project key accepted anywhere a project ID is.
 - **API errors** are always `{ "error": { "code", "message" } }` with a matching HTTP status. Lists use cursor pagination (`?cursor=&limit=50`, max 100, `next_cursor`).
 - Markdown is rendered sanitized, no raw HTML.
+
+## In-app docs (keep them current)
+
+The app documents itself in two pages: **Help** (`src/app/(app)/help/page.tsx`: how Botlog works, tasks, agent setup, agent rules and tools, API, shortcuts, FAQ) and **Self-hosting** (`src/app/(app)/help/self-hosting/page.tsx`: Supabase setup, env vars, Vercel/Docker/Node, HTTPS, backups, updates, troubleshooting).
+
+- **Any change that affects what these pages say updates them in the same PR**: features, UI names and flows, shortcuts, API behaviour, MCP tools or agent rules, env vars, setup or deploy steps, limits.
+- **Every new feature gets a deliberate check**: should it be on Help or Self-hosting? Add it if a user or self-hoster would need it; if not, say why in the PR description.
+- The agent rules and tool list come from `src/lib/mcp/rules.ts` and the shortcuts from `SHORTCUT_GROUPS` (`src/app/(app)/shortcuts-help.tsx`): change them there, not in the page. An MCP test fails if the tool list drifts from the server.
 
 ## Commands
 

@@ -1,0 +1,18 @@
+# Runs Botlog with Supabase Cloud (or your own Supabase): copy .env.example to .env, fill it in,
+# then `docker compose up -d --build`. See the self-hosting guide at /help/self-hosting.
+services:
+  botlog:
+    build:
+      context: .
+      # Public values compiled into the app; read from .env.
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY}
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL}
+    # Everything else, secrets included, at runtime only.
+    env_file: .env
+    # Only on this machine: put an HTTPS proxy (like Caddy) in front. Binding to all interfaces
+    # would expose plain HTTP, since Docker's port rules skip most host firewalls.
+    ports:
+      - "127.0.0.1:3000:3000"
+    restart: unless-stopped

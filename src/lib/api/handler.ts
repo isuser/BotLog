@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import type { z } from "zod";
 import { authenticate, type ApiContext } from "./auth";
 import { ApiError, errorResponse } from "./errors";
+import { enforceRateLimit } from "./rate-limit";
 
 type Params = Record<string, string | string[] | undefined>;
 
@@ -11,8 +12,8 @@ type Handler<P extends Params> = (
 ) => Promise<Response>;
 
 /**
- * Wraps a Route Handler: authenticates the caller and turns thrown errors into the
- * standard `{ error: { code, message } }` response.
+ * Wraps a Route Handler: authenticates the caller, counts the request against their rate
+ * limit, and turns thrown errors into the standard `{ error: { code, message } }` response.
  */
 export function route<P extends Params = Params>(
   handler: Handler<P>,
@@ -21,6 +22,7 @@ export function route<P extends Params = Params>(
   return async (request: NextRequest, context: { params: Promise<P> }) => {
     try {
       const api = await authenticate(request, options);
+      await enforceRateLimit(api.db, api.actor);
       return await handler({ ...api, request, params: await context.params, url: request.nextUrl });
     } catch (error) {
       // Let Next.js handle its own control-flow errors (e.g. opting out of prerendering).

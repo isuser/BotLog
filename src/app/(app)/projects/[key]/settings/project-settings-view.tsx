@@ -1,11 +1,11 @@
 "use client";
 
-import { ArchiveRestoreIcon, PlusIcon, Trash2Icon } from "lucide-react";
+import { ArchiveRestoreIcon, DownloadIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
 import useSWR, { useSWRConfig } from "swr";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Dialog,
   DialogClose,
@@ -39,6 +39,16 @@ export function ProjectSettingsView({ projectKey }: { projectKey: string }) {
         {project ? <GeneralSection key={project.updated_at} project={project} /> : <Skeleton className="h-40 w-full" />}
         <LabelsSection projectKey={projectKey} />
         <ArchivedSection projectKey={projectKey} />
+        <Section
+          id="settings-export"
+          title="Export"
+          description="Download the whole project as JSON: epics, labels, tasks (archived ones too) and comments."
+        >
+          {/* A real link: it's a file download, styled as a button. */}
+          <a href={`/api/v1/projects/${projectKey}/export`} download className={cn(buttonVariants({ variant: "outline" }), "self-start")}>
+            <DownloadIcon /> Download export
+          </a>
+        </Section>
       </div>
     </main>
   );

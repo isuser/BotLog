@@ -6,6 +6,7 @@ create role authenticated nologin noinherit;
 create role service_role nologin noinherit bypassrls;
 
 create schema auth;
+create schema extensions;
 
 create table auth.users (
   id uuid primary key default gen_random_uuid(),
