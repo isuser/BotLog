@@ -9,6 +9,7 @@ const LINKS = [
   { href: "/", label: "Projects", active: (path: string) => path === "/" || path.startsWith("/projects") },
   { href: "/my-tasks", label: "My tasks", active: (path: string) => path.startsWith("/my-tasks") },
   { href: "/agents", label: "Agents", active: (path: string) => path.startsWith("/agents") },
+  { href: "/help", label: "Help", active: (path: string) => path.startsWith("/help") },
 ];
 
 /** The top bar's links; the current section is a lime pill. */
