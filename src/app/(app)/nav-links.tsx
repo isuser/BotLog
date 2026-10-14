@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 const LINKS = [
   // Projects covers the projects list and every board.
   { href: "/", label: "Projects", active: (path: string) => path === "/" || path.startsWith("/projects") },
+  { href: "/my-tasks", label: "My tasks", active: (path: string) => path.startsWith("/my-tasks") },
   { href: "/agents", label: "Agents", active: (path: string) => path.startsWith("/agents") },
 ];
 

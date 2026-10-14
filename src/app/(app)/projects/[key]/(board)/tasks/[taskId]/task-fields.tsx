@@ -3,16 +3,15 @@
 import { CalendarIcon, CircleDotIcon, LayersIcon, SignalIcon, TagIcon, TagsIcon, UserIcon, type LucideIcon } from "lucide-react";
 import { useState } from "react";
 import useSWR from "swr";
-import { ActorAvatar, actorName, type Actor } from "@/components/actor-avatar";
+import { ActorAvatar, actorName, UnassignedAvatar, type Actor } from "@/components/actor-avatar";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { apiAll } from "@/lib/client/api";
-import { PRIORITY_LABELS, STATUS_COLORS, STATUS_LABELS, TYPE_LABELS } from "@/lib/client/task-labels";
+import { PRIORITY_BADGE, PRIORITY_LABELS, STATUS_COLORS, STATUS_LABELS, TYPE_BADGE, TYPE_LABELS } from "@/lib/client/task-labels";
 import type { Agent, Epic, Task, TaskStatus } from "@/lib/client/types";
 import { cn } from "@/lib/utils";
-import { PRIORITY_BADGE, TYPE_BADGE } from "../../task-card";
 import { LabelPicker } from "./label-picker";
 
 export type CurrentUser = { id: string; email: string };
@@ -261,7 +260,7 @@ function FieldSelect<T extends string>({
 function AssigneeOption({ actor, label }: { actor: Actor | null; label: (actor: Actor | null) => string }) {
   return (
     <span className="flex min-w-0 items-center gap-2">
-      {actor ? <ActorAvatar actor={actor} className="size-5" /> : <span className="size-5 rounded-full border border-dashed" />}
+      {actor ? <ActorAvatar actor={actor} className="size-5" /> : <UnassignedAvatar className="size-5 [&_svg]:size-3" />}
       <span className="truncate">{label(actor)}</span>
     </span>
   );

@@ -3,37 +3,26 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useParams, useRouter } from "next/navigation";
-import { ActorAvatar, actorName } from "@/components/actor-avatar";
+import { ActorAvatar, actorName, UnassignedAvatar } from "@/components/actor-avatar";
 import { LabelChip } from "@/components/label-chip";
 import { Badge } from "@/components/ui/badge";
+import { taskHref } from "@/lib/client/board";
+import { PRIORITY_BADGE, TYPE_BADGE } from "@/lib/client/task-labels";
 import type { Task } from "@/lib/client/types";
 import { cn } from "@/lib/utils";
-
-export const TYPE_BADGE: Partial<Record<Task["type"], { label: string; variant: "danger" | "info" }>> = {
-  bug: { label: "Bug", variant: "danger" },
-  improvement: { label: "Improvement", variant: "info" },
-};
-
-export const PRIORITY_BADGE: Partial<
-  Record<Task["priority"], { label: string; variant: "danger" | "warning" | "secondary" }>
-> = {
-  urgent: { label: "Urgent", variant: "danger" },
-  high: { label: "High", variant: "warning" },
-  medium: { label: "Medium", variant: "secondary" },
-  low: { label: "Low", variant: "secondary" },
-};
-
-export const taskHref = (task: Pick<Task, "project_key" | "short_id">) =>
-  `/projects/${task.project_key}/tasks/${task.short_id}`;
+import { AssigneePicker } from "./assignee-picker";
 
 export function TaskCard({
   task,
   dragging = false,
   selected = false,
+  assignee,
 }: {
   task: Task;
   dragging?: boolean;
   selected?: boolean;
+  /** Replaces the static avatar, e.g. with a picker on interactive cards. */
+  assignee?: React.ReactNode;
 }) {
   const type = TYPE_BADGE[task.type];
   const priority = PRIORITY_BADGE[task.priority];
@@ -59,18 +48,19 @@ export function TaskCard({
           ))}
         </div>
       )}
-      {(type || priority || task.assignee) && (
-        <div className="flex items-center gap-1.5">
-          {type && <Badge variant={type.variant}>{type.label}</Badge>}
-          {priority && <Badge variant={priority.variant}>{priority.label}</Badge>}
-          {task.assignee && (
-            <span className="ml-auto">
-              <ActorAvatar actor={task.assignee} />
-              <span className="sr-only">Assigned to {actorName(task.assignee)}</span>
-            </span>
+      {/* Every card has this row, so the assignee (or the empty seat) is always in the same place. */}
+      <div className="flex items-center gap-1.5">
+        {type && <Badge variant={type.variant}>{type.label}</Badge>}
+        {priority && <Badge variant={priority.variant}>{priority.label}</Badge>}
+        <span className="ml-auto flex">
+          {assignee ?? (
+            <>
+              {task.assignee ? <ActorAvatar actor={task.assignee} /> : <UnassignedAvatar />}
+              <span className="sr-only">{task.assignee ? `Assigned to ${actorName(task.assignee)}` : "Unassigned"}</span>
+            </>
           )}
-        </div>
-      )}
+        </span>
+      </div>
     </div>
   );
 }
@@ -109,7 +99,11 @@ export function SortableTaskCard({ task }: { task: Task }) {
         }
       }}
     >
-      <TaskCard task={task} selected={taskId?.toUpperCase() === task.short_id} />
+      <TaskCard
+        task={task}
+        selected={taskId?.toUpperCase() === task.short_id}
+        assignee={<AssigneePicker task={task} />}
+      />
     </li>
   );
 }

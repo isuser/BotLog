@@ -10,27 +10,29 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api, ApiRequestError, isConflict } from "@/lib/client/api";
-import { syncTask } from "@/lib/client/board";
+import { syncTask, taskHref, type TaskView } from "@/lib/client/board";
 import { fullDate, timeAgo } from "@/lib/client/format";
 import type { Task, TaskStatus } from "@/lib/client/types";
-import { taskHref } from "../../task-card";
 import { TaskActivity } from "./task-activity";
 import { TaskComments } from "./task-comments";
 import { TaskFields, TaskTitle, type CurrentUser, type FieldChange } from "./task-fields";
 
-/** Side panel on wide screens, full-screen on phones. Closing it goes back to the board. */
+/** Side panel on wide screens, full-screen on phones. Closing it goes back to the board or list. */
 export function TaskPanel({
   projectKey,
   taskRef,
   currentUser,
+  view = "board",
 }: {
   projectKey: string;
   taskRef: string;
   currentUser: CurrentUser;
+  /** The project page the panel is open over, which closing returns to. */
+  view?: TaskView;
 }) {
   const router = useRouter();
   const { mutate: mutateKey } = useSWRConfig();
-  const boardHref = `/projects/${projectKey}`;
+  const backHref = `/projects/${projectKey}${view === "list" ? "/list" : ""}`;
   const { data: task, error, mutate } = useSWR(`/tasks/${taskRef}`, (path: string) =>
     api<{ data: Task }>(path).then((r) => r.data),
   );
@@ -44,9 +46,9 @@ export function TaskPanel({
   // A task opened under another project's URL, or by UUID, moves to its own URL.
   useEffect(() => {
     if (task && (task.project_key !== projectKey || task.short_id !== taskRef)) {
-      router.replace(taskHref(task), { scroll: false });
+      router.replace(taskHref(task, view), { scroll: false });
     }
-  }, [task, projectKey, taskRef, router]);
+  }, [task, projectKey, taskRef, router, view]);
 
   const syncBoard = (updated: Task) =>
     mutateKey(`/projects/${updated.project_key}/tasks`, (tasks?: Task[]) => tasks && syncTask(tasks, updated), {
@@ -148,7 +150,7 @@ export function TaskPanel({
       open={open}
       onOpenChange={(next) => setOpen(next)}
       onOpenChangeComplete={(next) => {
-        if (!next) router.push(boardHref, { scroll: false });
+        if (!next) router.push(backHref, { scroll: false });
       }}
     >
       {/* Focus the panel itself on open, not its first button, so nothing looks selected. */}

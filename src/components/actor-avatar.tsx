@@ -1,4 +1,4 @@
-import { BotIcon } from "lucide-react";
+import { BotIcon, UserIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /** A task assignee or comment author, as the API returns them. */
@@ -30,6 +30,22 @@ export function ActorAvatar({ actor, className }: { actor: Actor; className?: st
       )}
     >
       {actor.type === "agent" ? <BotIcon className="size-3.5" /> : initials(name)}
+    </span>
+  );
+}
+
+/** The empty seat where an avatar would be: a dashed circle, for unassigned tasks. */
+export function UnassignedAvatar({ className }: { className?: string }) {
+  return (
+    <span
+      aria-hidden
+      title="Unassigned"
+      className={cn(
+        "text-muted-foreground flex size-6 shrink-0 items-center justify-center rounded-full border border-dashed",
+        className,
+      )}
+    >
+      <UserIcon className="size-3.5" />
     </span>
   );
 }
