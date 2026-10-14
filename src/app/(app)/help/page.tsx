@@ -13,6 +13,7 @@ const SECTIONS = [
   { id: "agent-rules", title: "What agents do" },
   { id: "api", title: "The API" },
   { id: "shortcuts", title: "Keyboard shortcuts" },
+  { id: "self-hosting", title: "Run your own Botlog" },
   { id: "faq", title: "FAQ" },
 ];
 
@@ -253,6 +254,16 @@ export default function HelpPage() {
           <div className="not-prose">
             <ShortcutTable />
           </div>
+
+          <h2 id="self-hosting">Run your own Botlog</h2>
+          <p>
+            Botlog is open source. The{" "}
+            <Link href="/help/self-hosting">
+              <strong>self-hosting guide</strong>
+            </Link>{" "}
+            covers setting up Supabase, the environment, running it on Vercel or with Docker, HTTPS, backups and
+            updates.
+          </p>
 
           <h2 id="faq">FAQ</h2>
           <div className="not-prose flex flex-col gap-2">

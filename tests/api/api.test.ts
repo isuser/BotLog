@@ -16,6 +16,7 @@ import * as me from "@/app/api/v1/me/route";
 import * as meTasks from "@/app/api/v1/me/tasks/route";
 import * as projectEpics from "@/app/api/v1/projects/[id]/epics/route";
 import * as projectLabels from "@/app/api/v1/projects/[id]/labels/route";
+import * as projectExport from "@/app/api/v1/projects/[id]/export/route";
 import * as projectRoute from "@/app/api/v1/projects/[id]/route";
 import * as projectTasks from "@/app/api/v1/projects/[id]/tasks/route";
 import * as projects from "@/app/api/v1/projects/route";
@@ -377,6 +378,31 @@ describe("search", () => {
     const res = await call(tasksRoute.GET, { path: "/api/v1/tasks?q=searchable", token: bob.token });
     expect(res.status).toBe(200);
     expect(res.body.data).toEqual([]);
+  });
+});
+
+describe("export", () => {
+  test("downloads the whole project as JSON, archived items and comments included", async () => {
+    const label = (await call(projectLabels.POST, { method: "POST", params: { id: PROJECT }, token: alice.token, body: { name: "Exported" } })).body.data;
+    const task = await createTask({ title: "To export", label_ids: [label.id] });
+    await call(taskComments.POST, { method: "POST", params: { id: task.id }, token: alice.token, body: { body: "Exported comment" } });
+    const archived = await createTask({ title: "Archived but exported" });
+    await call(taskRoute.DELETE, { method: "DELETE", params: { id: archived.id }, token: alice.token });
+
+    const res = await call(projectExport.GET, { params: { id: PROJECT }, token: alice.token });
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    expect(res.headers.get("content-disposition")).toMatch(/attachment; filename="botlog-api-\d{4}-\d{2}-\d{2}\.json"/);
+    expect(res.body).toMatchObject({ format: "botlog-project-export", version: 1, project: { key: PROJECT } });
+    const exported = res.body.tasks.find((t: { id: string }) => t.id === task.id);
+    expect(exported).toMatchObject({ short_id: task.short_id, label_ids: [label.id] });
+    expect(res.body.tasks.some((t: { id: string; archived_at: string | null }) => t.id === archived.id && t.archived_at)).toBe(true);
+    expect(res.body.labels.some((l: { id: string }) => l.id === label.id)).toBe(true);
+    expect(res.body.comments.some((c: { task_id: string; body: string }) => c.task_id === task.id && c.body === "Exported comment")).toBe(true);
+    expect(res.body.comments[0]).not.toHaveProperty("task");
+  });
+
+  test("another workspace can't export it", async () => {
+    expect((await call(projectExport.GET, { params: { id: PROJECT }, token: bob.token })).status).toBe(404);
   });
 });
 
