@@ -77,7 +77,7 @@ export async function call(
   const response = await handler(request, { params: Promise.resolve(params) as Promise<never> });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const json: any = response.headers.get("content-type")?.includes("json") ? await response.json() : null;
-  return { status: response.status, body: json };
+  return { status: response.status, body: json, headers: response.headers };
 }
 
 /** Whether the JWT signing key in .env.local has been imported into the project. */

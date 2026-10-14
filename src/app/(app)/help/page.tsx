@@ -243,6 +243,10 @@ export default function HelpPage() {
               Errors are always <code>{'{ "error": { "code", "message" } }'}</code>. Lists page with{" "}
               <code>?cursor=</code> and <code>next_cursor</code>.
             </li>
+            <li>
+              Requests are rate limited per minute: 120 per agent API key and 600 per person by default. Over the
+              limit you get <code>429</code> with a <code>Retry-After</code> header; wait that many seconds.
+            </li>
           </ul>
 
           <h2 id="shortcuts">Keyboard shortcuts</h2>

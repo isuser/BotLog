@@ -563,6 +563,13 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      hit_rate_limit: {
+        Args: { p_window_seconds?: number }
+        Returns: {
+          hits: number
+          reset_at: string
+        }[]
+      }
       set_task_labels: {
         Args: { p_label_ids: string[]; p_task_id: string; p_version: number }
         Returns: number

@@ -190,6 +190,42 @@ describe("realtime", () => {
   });
 });
 
+describe("rate limits", () => {
+  const hit = (claims: Parameters<typeof as>[1]) =>
+    as(db, claims, (tx) => one<{ hits: number; reset_at: string }>(tx, "select * from public.hit_rate_limit(60)"));
+
+  test("count per user, and per API key for agents, in their own buckets", async () => {
+    const { userId } = await setup();
+    const claims = await createAgent(userId);
+
+    expect((await hit({ sub: userId })).hits).toBe(1);
+    expect((await hit({ sub: userId })).hits).toBe(2);
+    // The agent acts as its owner but has its own allowance.
+    expect((await hit(claims)).hits).toBe(1);
+    const other = await setup();
+    expect((await hit({ sub: other.userId })).hits).toBe(1);
+  });
+
+  test("the window resets on a whole minute", async () => {
+    const { userId } = await setup();
+    const { reset_at } = await hit({ sub: userId });
+    const reset = new Date(reset_at);
+    expect(reset.getUTCSeconds()).toBe(0);
+    expect(reset.getTime() - Date.now()).toBeLessThanOrEqual(60_000);
+  });
+
+  test("clients can't read or change the counters directly", async () => {
+    const { userId } = await setup();
+    await expect(as(db, { sub: userId }, (tx) => tx.query("select * from private.rate_limit"))).rejects.toThrow(/permission denied/);
+    await expect(as(db, { sub: "" }, (tx) => tx.query("select * from public.hit_rate_limit(60)"))).rejects.toThrow(/not signed in|permission denied|invalid input/);
+  });
+
+  test("title search has a trigram index", async () => {
+    const { rows } = await db.query<{ indexdef: string }>("select indexdef from pg_indexes where indexname = 'task_title_trgm_idx'");
+    expect(rows[0]?.indexdef).toMatch(/gin.*gin_trgm_ops/);
+  });
+});
+
 describe("profile", () => {
   test("defaults to the Lime theme and lets its owner change theme and name", async () => {
     const { userId } = await setup();

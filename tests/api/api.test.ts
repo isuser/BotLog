@@ -380,6 +380,37 @@ describe("search", () => {
   });
 });
 
+describe("rate limits", () => {
+  test("over the limit answers 429 with Retry-After, counted per caller", async () => {
+    const [carol, dave] = await Promise.all([createTestUser(), createTestUser()]);
+    vi.stubEnv("ALLOWED_EMAILS", `${alice.email},${bob.email},${carol.email},${dave.email}`);
+    vi.stubEnv("RATE_LIMIT_USER_PER_MINUTE", "3");
+    try {
+      const statuses: number[] = [];
+      let limited: Awaited<ReturnType<typeof call>> | undefined;
+      for (let i = 0; i < 5; i++) {
+        const res = await call(projects.GET, { token: carol.token });
+        statuses.push(res.status);
+        if (res.status === 429) limited ??= res;
+      }
+      // A minute boundary can land mid-loop and reset the count, so only require that the limit bit.
+      expect(statuses.slice(0, 3)).not.toContain(429);
+      expect(limited, `statuses: ${statuses}`).toBeDefined();
+      expect(limited!.body.error).toMatchObject({ code: "rate_limited", details: { limit: 3 } });
+      const retryAfter = Number(limited!.headers.get("retry-after"));
+      expect(retryAfter).toBeGreaterThanOrEqual(1);
+      expect(retryAfter).toBeLessThanOrEqual(60);
+
+      // Someone else's allowance is separate.
+      expect((await call(projects.GET, { token: dave.token })).status).toBe(200);
+    } finally {
+      vi.stubEnv("RATE_LIMIT_USER_PER_MINUTE", "");
+      vi.stubEnv("ALLOWED_EMAILS", `${alice.email},${bob.email}`);
+      await deleteTestUsers([carol.id, dave.id]);
+    }
+  });
+});
+
 describe("profile", () => {
   test("reads and updates your own name and theme", async () => {
     const res = await call(me.GET, { token: bob.token });
