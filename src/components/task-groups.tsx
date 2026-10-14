@@ -4,6 +4,7 @@ import { ChevronRightIcon, XIcon } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { ActorAvatar, actorName, UnassignedAvatar } from "@/components/actor-avatar";
+import { EpicPill } from "@/components/epic-pill";
 import { LabelChip } from "@/components/label-chip";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -112,8 +113,8 @@ function TaskRow({
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="truncate">{task.title}</span>
           {showDetails && (task.epic || task.due_date) && (
-            <span className="text-muted-foreground flex gap-2 truncate text-xs">
-              {task.epic && <span className="truncate">{task.epic.title}</span>}
+            <span className="text-muted-foreground mt-0.5 flex min-w-0 items-center gap-2 text-xs">
+              {task.epic && <EpicPill epic={task.epic} className="max-w-48" />}
               {task.due_date && (
                 <span className={cn("shrink-0", overdue && "text-danger")}>Due {formatDate(task.due_date)}</span>
               )}

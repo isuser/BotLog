@@ -50,3 +50,16 @@ export const PRIORITY_BADGE: Partial<
   medium: { label: "Medium", variant: "secondary" },
   low: { label: "Low", variant: "secondary" },
 };
+
+/** Colours for labels: new ones take them in turn. Mid-tone so the dot reads on both themes. */
+export const LABEL_COLORS = ["#84cc16", "#38bdf8", "#f59e0b", "#ef4444", "#a855f7", "#14b8a6", "#ec4899", "#6b7280"];
+
+/**
+ * An epic's colour, picked from the label palette by its id, so it's stable without being
+ * stored. Different epics usually, but not always, get different colours.
+ */
+export function epicColor(epicId: string): string {
+  let hash = 0;
+  for (const char of epicId) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  return LABEL_COLORS[hash % LABEL_COLORS.length];
+}

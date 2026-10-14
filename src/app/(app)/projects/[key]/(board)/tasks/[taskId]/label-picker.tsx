@@ -9,11 +9,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { api, apiAll, errorMessage } from "@/lib/client/api";
+import { LABEL_COLORS } from "@/lib/client/task-labels";
 import type { Label, Task } from "@/lib/client/types";
 import { cn } from "@/lib/utils";
-
-/** Colours for new labels, picked in turn. Mid-tone so the dot reads on both themes. */
-const LABEL_COLORS = ["#84cc16", "#38bdf8", "#f59e0b", "#ef4444", "#a855f7", "#14b8a6", "#ec4899", "#6b7280"];
 
 /**
  * The task's labels. Opens a list of the project's labels to tick, and a box that filters
