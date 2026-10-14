@@ -564,7 +564,7 @@ export type Database = {
     }
     Functions: {
       hit_rate_limit: {
-        Args: { p_window_seconds?: number }
+        Args: never
         Returns: {
           hits: number
           reset_at: string

@@ -188,7 +188,7 @@ pnpm exec supabase db push`}
           </p>
           <p>
             <strong>Docker Compose:</strong> with your <code>.env</code> filled in, build and start it. It listens on
-            port 3000.
+            port 3000 on this machine only (<code>127.0.0.1</code>), for the HTTPS proxy in step 5.
           </p>
           <CopyBlock label="docker compose command" text="docker compose up -d --build" />
           <p>
@@ -198,8 +198,13 @@ pnpm exec supabase db push`}
             label="node commands"
             text={`pnpm build
 cp -r .next/static .next/standalone/.next/
+rm -f .next/standalone/.env*    # the build copies env files in; keep secrets out of it
 node --env-file=.env .next/standalone/server.js`}
           />
+          <p>
+            Next.js copies <code>.env</code> files into <code>.next/standalone</code> when it builds. Remove them (as
+            above) before copying that folder anywhere, so your secret keys don&apos;t travel with it.
+          </p>
 
           <h2 id="https">5. HTTPS</h2>
           <p>
@@ -210,7 +215,8 @@ node --env-file=.env .next/standalone/server.js`}
   reverse_proxy localhost:3000
 }`} />
           <p>
-            Sign-in cookies need HTTPS. Realtime connects from the browser straight to Supabase, so the proxy doesn&apos;t
+            Keep port 3000 private to the machine (Docker Compose already binds it to <code>127.0.0.1</code>), so
+            nothing reaches Botlog without HTTPS. Sign-in cookies need HTTPS. Realtime connects from the browser straight to Supabase, so the proxy doesn&apos;t
             need websockets. Then open your address, sign in, and{" "}
             <Link href="/help#agents">set up an agent</Link>.
           </p>

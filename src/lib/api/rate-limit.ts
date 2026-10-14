@@ -1,8 +1,6 @@
 import type { Actor, Db } from "./auth";
 import { ApiError } from "./errors";
 
-const WINDOW_SECONDS = 60;
-
 /** Requests per minute: per API key for agents, per person for the web app and scripts. */
 export function rateLimitFor(actor: Actor): number {
   return actor.type === "agent"
@@ -21,7 +19,8 @@ function positiveInt(raw: string | undefined, fallback: number): number {
  * through: a broken limiter shouldn't take the API down.
  */
 export async function enforceRateLimit(db: Db, actor: Actor): Promise<void> {
-  const { data, error } = await db.rpc("hit_rate_limit", { p_window_seconds: WINDOW_SECONDS }).single();
+  // One-minute windows, fixed in the database function.
+  const { data, error } = await db.rpc("hit_rate_limit").single();
   if (error || !data) {
     console.error("Rate limit check failed; allowing the request", error);
     return;
