@@ -11,6 +11,7 @@ import * as mcpRoute from "@/app/api/mcp/route";
 import * as projectTasks from "@/app/api/v1/projects/[id]/tasks/route";
 import * as projects from "@/app/api/v1/projects/route";
 import * as taskRoute from "@/app/api/v1/tasks/[id]/route";
+import { AGENT_TOOLS } from "@/lib/mcp/rules";
 import { call, createTestUser, deleteTestUsers, signingKeyIsLive, type TestUser } from "./harness";
 
 const keyLive = await signingKeyIsLive();
@@ -111,6 +112,8 @@ describe.skipIf(!keyLive)("tools", () => {
       "update_epic",
       "update_task",
     ]);
+    // The Help page lists the same tools.
+    expect(tools.map((t) => t.name).sort()).toEqual(AGENT_TOOLS.map((t) => t.name).sort());
     expect(client.getInstructions()).toContain("list_my_tasks");
     expect(client.getInstructions()).toContain("409");
   });

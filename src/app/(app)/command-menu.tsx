@@ -3,6 +3,7 @@
 import {
   BotIcon,
   CheckSquareIcon,
+  CircleHelpIcon,
   FolderIcon,
   KeyboardIcon,
   LayoutGridIcon,
@@ -123,6 +124,7 @@ export function CommandMenu({
     { id: "projects", label: "All projects", icon: FolderIcon, run: () => go("/") },
     { id: "agents", label: "Agents", icon: BotIcon, run: () => go("/agents") },
     { id: "settings", label: "Settings", icon: SettingsIcon, run: () => go("/settings") },
+    { id: "help", label: "Help and agent setup", icon: CircleHelpIcon, run: () => go("/help") },
   ];
   for (const page of pages.filter((p) => !q || matches(p.label, q))) items.push({ ...page, group: "Go to" });
   const actions: Omit<Item, "group">[] = [

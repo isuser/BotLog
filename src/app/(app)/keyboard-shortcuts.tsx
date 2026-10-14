@@ -11,6 +11,7 @@ const SEQUENCE_MS = 1000;
 
 const GO_TO: Record<string, (projectKey: string | null) => string | null> = {
   m: () => "/my-tasks",
+  h: () => "/help",
   b: (key) => key && `/projects/${key}`,
   l: (key) => key && `/projects/${key}/list`,
   e: (key) => key && `/projects/${key}/epics`,
