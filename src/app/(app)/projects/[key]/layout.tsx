@@ -1,23 +1,20 @@
 import { Suspense } from "react";
-import { Board, BoardSkeleton } from "./board";
+import { ProjectHeader } from "./project-header";
 
-/**
- * The board lives in the layout, so it stays mounted (with its scroll position) while a
- * task is open on top of it at /projects/[key]/tasks/[taskId].
- */
+/** Every project page: the project's title and its Board / Epics tabs, above the page. */
 export default function ProjectLayout({ children, params }: LayoutProps<"/projects/[key]">) {
   return (
-    <>
-      {/* The key comes from the URL, so the board renders at request time. */}
-      <Suspense fallback={<BoardSkeleton />}>
-        <BoardForKey params={params} />
+    <div className="flex min-h-0 flex-1 flex-col">
+      {/* The key comes from the URL, so the header renders at request time. */}
+      <Suspense fallback={<div className="h-[4.5rem]" />}>
+        <HeaderForKey params={params} />
       </Suspense>
       {children}
-    </>
+    </div>
   );
 }
 
-async function BoardForKey({ params }: Pick<LayoutProps<"/projects/[key]">, "params">) {
+async function HeaderForKey({ params }: Pick<LayoutProps<"/projects/[key]">, "params">) {
   const { key } = await params;
-  return <Board projectKey={key.toUpperCase()} />;
+  return <ProjectHeader projectKey={key.toUpperCase()} />;
 }

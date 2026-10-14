@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import useSWR, { useSWRConfig } from "swr";
+import { DescriptionEditor } from "@/components/description-editor";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -15,7 +16,6 @@ import type { Task, TaskStatus } from "@/lib/client/types";
 import { taskHref } from "../../task-card";
 import { TaskActivity } from "./task-activity";
 import { TaskComments } from "./task-comments";
-import { TaskDescription } from "./task-description";
 import { TaskFields, TaskTitle, type CurrentUser, type FieldChange } from "./task-fields";
 
 /** Side panel on wide screens, full-screen on phones. Closing it goes back to the board. */
@@ -191,7 +191,7 @@ export function TaskPanel({
               )}
               <TaskTitle key={task.title} task={task} disabled={archived} onSave={update} />
               <TaskFields task={task} currentUser={currentUser} disabled={archived} onChange={update} onMove={move} />
-              <TaskDescription
+              <DescriptionEditor
                 key={task.id}
                 description={task.description}
                 disabled={archived}

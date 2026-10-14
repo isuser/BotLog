@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarIcon, CircleDotIcon, SignalIcon, TagIcon, UserIcon, type LucideIcon } from "lucide-react";
+import { CalendarIcon, CircleDotIcon, LayersIcon, SignalIcon, TagIcon, TagsIcon, UserIcon, type LucideIcon } from "lucide-react";
 import { useState } from "react";
 import useSWR from "swr";
 import { ActorAvatar, actorName, type Actor } from "@/components/actor-avatar";
@@ -10,14 +10,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { apiAll } from "@/lib/client/api";
 import { PRIORITY_LABELS, STATUS_COLORS, STATUS_LABELS, TYPE_LABELS } from "@/lib/client/task-labels";
-import type { Agent, Task, TaskStatus } from "@/lib/client/types";
+import type { Agent, Epic, Task, TaskStatus } from "@/lib/client/types";
 import { cn } from "@/lib/utils";
 import { PRIORITY_BADGE, TYPE_BADGE } from "../../task-card";
+import { LabelPicker } from "./label-picker";
 
 export type CurrentUser = { id: string; email: string };
 
-type UpdateBody = Partial<Pick<Task, "title" | "description" | "type" | "priority" | "due_date">> & {
+type UpdateBody = Partial<Pick<Task, "title" | "description" | "type" | "priority" | "due_date" | "epic_id">> & {
   assignee?: { type: "user" | "agent"; id: string } | null;
+  label_ids?: string[];
 };
 
 /** A PATCH body, plus how the task should look until the API answers. */
@@ -188,6 +190,19 @@ export function TaskFields({
       <Field label="Due date" icon={CalendarIcon}>
         <DueDate key={task.due_date} value={task.due_date} disabled={disabled} onChange={onChange} />
       </Field>
+      <Field label="Epic" icon={LayersIcon}>
+        <EpicSelect task={task} disabled={disabled} onChange={onChange} />
+      </Field>
+      <Field label="Labels" icon={TagsIcon}>
+        <LabelPicker
+          task={task}
+          disabled={disabled}
+          className={CONTROL}
+          onChange={(labels) =>
+            onChange({ body: { label_ids: labels.map((l) => l.id) }, preview: { labels } })
+          }
+        />
+      </Field>
     </dl>
   );
 }
@@ -249,6 +264,45 @@ function AssigneeOption({ actor, label }: { actor: Actor | null; label: (actor: 
       {actor ? <ActorAvatar actor={actor} className="size-5" /> : <span className="size-5 rounded-full border border-dashed" />}
       <span className="truncate">{label(actor)}</span>
     </span>
+  );
+}
+
+/** The project's active epics, plus the task's current one even if it's archived. */
+function EpicSelect({
+  task,
+  disabled,
+  onChange,
+}: {
+  task: Task;
+  disabled: boolean;
+  onChange: (change: FieldChange) => Promise<boolean>;
+}) {
+  const { data: epics } = useSWR(`/projects/${task.project_key}/epics`, (path: string) => apiAll<Epic>(path));
+  const options = new Map<string, Task["epic"]>([["none", null]]);
+  for (const epic of epics ?? []) options.set(epic.id, { id: epic.id, title: epic.title, status: epic.status });
+  if (task.epic) options.set(task.epic.id, task.epic);
+
+  return (
+    <Select
+      value={task.epic_id ?? "none"}
+      disabled={disabled}
+      onValueChange={(value) => {
+        const next = value === "none" || value === null ? null : String(value);
+        if (next === task.epic_id) return;
+        void onChange({ body: { epic_id: next }, preview: { epic_id: next, epic: next ? (options.get(next) ?? null) : null } });
+      }}
+    >
+      <SelectTrigger aria-label="Epic" className={CONTROL}>
+        <SelectValue>{(value: string) => <span className="truncate">{options.get(value)?.title ?? "No epic"}</span>}</SelectValue>
+      </SelectTrigger>
+      <SelectContent>
+        {[...options].map(([value, epic]) => (
+          <SelectItem key={value} value={value}>
+            {epic?.title ?? "No epic"}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }
 

@@ -21,3 +21,7 @@ export function timeAgo(iso: string, now = Date.now()): string {
 /** A full date and time for tooltips, in the viewer's locale. */
 export const fullDate = (iso: string) =>
   new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+
+/** A date-only value (YYYY-MM-DD) like "Oct 20, 2026", read as a local date so the day doesn't shift. */
+export const formatDate = (date: string) =>
+  new Date(`${date}T00:00:00`).toLocaleDateString("en", { month: "short", day: "numeric", year: "numeric" });

@@ -14,7 +14,6 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
-import { ArrowLeftIcon } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -37,7 +36,7 @@ import { BoardColumn } from "./board-column";
 import { TaskCard } from "./task-card";
 
 export function Board({ projectKey }: { projectKey: string }) {
-  const { data: project, error: projectError } = useSWR(`/projects/${projectKey}`, (path: string) =>
+  const { error: projectError } = useSWR(`/projects/${projectKey}`, (path: string) =>
     api<{ data: Project }>(path).then((r) => r.data),
   );
   // Refetched whenever the window regains focus (SWR's default), so changes made by
@@ -149,20 +148,7 @@ export function Board({ projectKey }: { projectKey: string }) {
   }
 
   return (
-    <main className="flex min-h-0 flex-1 flex-col gap-4 py-4">
-      <div className="mx-auto flex w-full max-w-[77rem] items-center gap-3 px-4">
-        <Link href="/" aria-label="Back to projects" className="text-muted-foreground hover:text-foreground">
-          <ArrowLeftIcon className="size-4" />
-        </Link>
-        {project ? (
-          <h1 className="font-display truncate text-4xl font-bold tracking-[-0.02em]">
-            {project.name} <span className="text-muted-foreground font-mono text-sm font-normal tracking-normal">{project.key}</span>
-          </h1>
-        ) : (
-          <Skeleton className="h-10 w-64" />
-        )}
-      </div>
-
+    <main className="flex min-h-0 flex-1 flex-col pb-4">
       {!tasks ? (
         <BoardSkeleton />
       ) : (
@@ -175,7 +161,7 @@ export function Board({ projectKey }: { projectKey: string }) {
           onDragCancel={endDrag}
           accessibility={{ screenReaderInstructions: { draggable: DRAG_INSTRUCTIONS } }}
         >
-          <div className="flex flex-1 snap-x snap-mandatory scroll-px-4 overflow-x-auto px-4 pb-4 sm:snap-none">
+          <div className="flex flex-1 snap-x snap-mandatory scroll-px-4 overflow-x-auto px-4 sm:snap-none">
             {/* Centred while the columns fit; scrolls from the left edge when they don't. */}
             <div className="mx-auto flex w-max items-start gap-4">
               {COLUMNS.map(({ status, title }) => (

@@ -1,16 +1,14 @@
+import { formatDate } from "./format";
 import { PRIORITY_LABELS, STATUS_LABELS, TYPE_LABELS } from "./task-labels";
 import type { Activity, Task } from "./types";
 
 type Change = { from: unknown; to: unknown };
 
-/** Names for the people and agents an entry may refer to, by id. */
-export type NameLookup = (type: "user" | "agent", id: string) => string | undefined;
+/** Names for the people, agents, labels and epics an entry may refer to, by id. */
+export type NameLookup = (type: "user" | "agent" | "label" | "epic", id: string) => string | undefined;
 
 const label = <T extends string>(labels: Record<T, string>, value: unknown) =>
   labels[value as T] ?? String(value);
-
-const formatDate = (date: string) =>
-  new Date(`${date}T00:00:00`).toLocaleDateString("en", { month: "short", day: "numeric", year: "numeric" });
 
 /** "a", "a and b", "a, b and c". */
 function list(parts: string[]) {
@@ -39,9 +37,11 @@ function describeUpdate(changes: Record<string, Change>, names: NameLookup): str
       case "due_date":
         parts.push(to ? `set the due date to ${formatDate(String(to))}` : "removed the due date");
         break;
-      case "epic_id":
-        parts.push(to ? "changed the epic" : "removed the epic");
+      case "epic_id": {
+        const epic = to ? names("epic", String(to)) : undefined;
+        parts.push(!to ? "took it out of its epic" : epic ? `moved it to the epic “${epic}”` : "changed the epic");
         break;
+      }
     }
   }
 
@@ -75,18 +75,31 @@ export function describeActivity(entry: Activity, names: NameLookup): string | n
     case "updated":
       return list(describeUpdate(changes, names)) || null;
     case "label_added":
-      return "added a label";
-    case "label_removed":
-      return "removed a label";
+    case "label_removed": {
+      const name = typeof changes.label_id === "string" ? names("label", changes.label_id) : undefined;
+      const verb = entry.action === "label_added" ? "added" : "removed";
+      return name ? `${verb} the label “${name}”` : `${verb} a label`;
+    }
     default:
       return null;
   }
 }
 
-/** Ids → names from what the panel already has loaded: the viewer, agents and the task's assignee. */
-export function nameLookup(me: { id: string }, agents: { id: string; name: string }[], task: Task): NameLookup {
+/**
+ * Ids → names from what the panel already has loaded: the viewer, agents, the task's assignee,
+ * and the project's labels and epics.
+ */
+export function nameLookup(
+  me: { id: string },
+  agents: { id: string; name: string }[],
+  task: Task,
+  { labels = [], epics = [] }: { labels?: { id: string; name: string }[]; epics?: { id: string; title: string }[] } = {},
+): NameLookup {
   const known = new Map<string, string>([[`user:${me.id}`, "you"]]);
   for (const agent of agents) known.set(`agent:${agent.id}`, agent.name);
+  for (const label of labels) known.set(`label:${label.id}`, label.name);
+  for (const epic of epics) known.set(`epic:${epic.id}`, epic.title);
+  if (task.epic) known.set(`epic:${task.epic.id}`, task.epic.title);
   if (task.assignee && !known.has(`${task.assignee.type}:${task.assignee.id}`)) {
     known.set(`${task.assignee.type}:${task.assignee.id}`, task.assignee.name || "someone");
   }
