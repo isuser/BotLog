@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarIcon, PlusIcon } from "lucide-react";
+import { CalendarIcon, LayersIcon, PlusIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -22,7 +22,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api, apiAll, errorMessage } from "@/lib/client/api";
 import { formatDate } from "@/lib/client/format";
-import { EPIC_STATUS_BADGE, EPIC_STATUS_LABELS } from "@/lib/client/task-labels";
+import { EPIC_STATUS_BADGE, EPIC_STATUS_LABELS, epicColor } from "@/lib/client/task-labels";
 import type { Epic } from "@/lib/client/types";
 import { EpicProgress } from "./epic-progress";
 
@@ -60,7 +60,10 @@ export function EpicsView({ projectKey }: { projectKey: string }) {
                 className="bg-card hover:border-ring/50 flex h-full flex-col gap-3 rounded-xl border p-4 transition-colors"
               >
                 <div className="flex items-start justify-between gap-3">
-                  <h2 className="font-medium break-words">{epic.title}</h2>
+                  <h2 className="flex items-start gap-2 font-medium break-words">
+                    <LayersIcon className="mt-0.5 size-4 shrink-0" style={{ color: epicColor(epic.id) }} aria-hidden />
+                    {epic.title}
+                  </h2>
                   <Badge variant={EPIC_STATUS_BADGE[epic.status]}>{EPIC_STATUS_LABELS[epic.status]}</Badge>
                 </div>
                 <div className="mt-auto flex flex-col gap-2">

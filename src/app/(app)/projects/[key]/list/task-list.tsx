@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import useSWR from "swr";
 import { ActorAvatar, actorName, UnassignedAvatar } from "@/components/actor-avatar";
+import { EpicPill } from "@/components/epic-pill";
 import { LabelChip } from "@/components/label-chip";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -188,7 +189,7 @@ function TaskRow({ task, selected, overdue }: { task: Task; selected: boolean; o
           </span>
         )}
       </td>
-      <td className="max-w-40 truncate px-3 py-2">{task.epic?.title ?? <Dash />}</td>
+      <td className="max-w-40 px-3 py-2">{task.epic ? <EpicPill epic={task.epic} /> : <Dash />}</td>
       <td className={cn("px-3 py-2 whitespace-nowrap", overdue && "text-danger font-medium")}>
         {task.due_date ? formatDate(task.due_date) : <Dash />}
       </td>

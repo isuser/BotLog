@@ -4,6 +4,7 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useParams, useRouter } from "next/navigation";
 import { ActorAvatar, actorName, UnassignedAvatar } from "@/components/actor-avatar";
+import { EpicPill } from "@/components/epic-pill";
 import { LabelChip } from "@/components/label-chip";
 import { Badge } from "@/components/ui/badge";
 import { taskHref } from "@/lib/client/board";
@@ -38,7 +39,7 @@ export function TaskCard({
     >
       <span className="text-muted-foreground flex items-center justify-between gap-2 text-xs">
         <span className="font-mono">{task.short_id}</span>
-        {task.epic && <span className="truncate">{task.epic.title}</span>}
+        {task.epic && <EpicPill epic={task.epic} className="max-w-[60%]" />}
       </span>
       <p className="line-clamp-3 leading-snug break-words">{task.title}</p>
       {task.labels.length > 0 && (
