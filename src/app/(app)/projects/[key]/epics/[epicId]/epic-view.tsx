@@ -1,6 +1,6 @@
 "use client";
 
-import { ArchiveIcon, ArchiveRestoreIcon, ArrowLeftIcon } from "lucide-react";
+import { ArchiveIcon, ArchiveRestoreIcon, ArrowLeftIcon, XIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { api, apiAll, ApiRequestError, errorMessage } from "@/lib/client/api";
+import { api, apiAll, ApiRequestError, errorMessage, isConflict } from "@/lib/client/api";
 import { COLUMNS, groupByStatus } from "@/lib/client/board";
 import { EPIC_STATUS_LABELS, STATUS_COLORS } from "@/lib/client/task-labels";
 import type { Epic, EpicStatus, Task } from "@/lib/client/types";
@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils";
 import { QuickAdd } from "../../(board)/quick-add";
 import { PRIORITY_BADGE, taskHref, TYPE_BADGE } from "../../(board)/task-card";
 import { EpicProgress } from "../epic-progress";
+import { AddExistingTasks } from "./add-existing-tasks";
 
 type EpicChange = Partial<Pick<Epic, "title" | "description" | "status" | "target_date">>;
 
@@ -76,6 +77,16 @@ export function EpicView({ projectKey, epicId }: { projectKey: string; epicId: s
     }
   }
 
+  /** Puts an existing task in this epic, or (epic null) takes it out, keeping the version check. */
+  async function setTaskEpic(task: Task, epic: string | null) {
+    try {
+      await api(`/tasks/${task.id}`, { method: "PATCH", json: { epic_id: epic, version: task.version } });
+    } catch (e) {
+      toast[isConflict(e) ? "message" : "error"](isConflict(e) ? "This task was updated, reloaded" : errorMessage(e));
+    }
+    await Promise.all([mutateTasks(), mutate(), mutateKey(`/projects/${projectKey}/tasks`), mutateKey(epicsHref)]);
+  }
+
   const notFound = error instanceof ApiRequestError && (error.status === 404 || error.status === 400);
   if (error) {
     return (
@@ -91,7 +102,7 @@ export function EpicView({ projectKey, epicId }: { projectKey: string; epicId: s
   const archived = Boolean(epic?.archived_at);
 
   return (
-    <main className="mx-auto flex w-full max-w-[77rem] flex-1 flex-col overflow-y-auto px-4 pb-8">
+    <main className="mx-auto flex w-full max-w-[77rem] flex-1 flex-col overflow-y-auto px-4 pb-8 [&>*]:shrink-0">
       <div className="flex max-w-3xl flex-col gap-6">
         <Link href={epicsHref} className="text-muted-foreground hover:text-foreground flex w-fit items-center gap-1.5 text-sm">
           <ArrowLeftIcon className="size-4" /> Epics
@@ -152,13 +163,20 @@ export function EpicView({ projectKey, epicId }: { projectKey: string; epicId: s
           <h2 id="epic-tasks" className="text-sm font-semibold">
             Tasks
           </h2>
-          {!archived && <QuickAdd columnTitle="this epic" onAdd={addTask} />}
+          {!archived && (
+            <div className="flex items-start gap-2">
+              <div className="min-w-0 flex-1">
+                <QuickAdd columnTitle="this epic" onAdd={addTask} />
+              </div>
+              <AddExistingTasks projectKey={projectKey} epicId={epicId} onAdd={(task) => setTaskEpic(task, epicId)} />
+            </div>
+          )}
           {!tasks ? (
             <Skeleton className="h-24 w-full" />
           ) : tasks.length === 0 ? (
             <p className="text-muted-foreground text-sm">No tasks in this epic yet.</p>
           ) : (
-            <EpicTasks tasks={tasks} />
+            <EpicTasks tasks={tasks} onRemove={archived ? undefined : (task) => void setTaskEpic(task, null)} />
           )}
         </section>
       </div>
@@ -167,7 +185,7 @@ export function EpicView({ projectKey, epicId }: { projectKey: string; epicId: s
 }
 
 /** The epic's tasks under their status, each linking to the task on the board. */
-function EpicTasks({ tasks }: { tasks: Task[] }) {
+function EpicTasks({ tasks, onRemove }: { tasks: Task[]; onRemove?: (task: Task) => void }) {
   const columns = groupByStatus(tasks);
   return (
     <div className="flex flex-col gap-4">
@@ -183,10 +201,10 @@ function EpicTasks({ tasks }: { tasks: Task[] }) {
               const type = TYPE_BADGE[task.type];
               const priority = PRIORITY_BADGE[task.priority];
               return (
-                <li key={task.id}>
+                <li key={task.id} className="group flex items-center">
                   <Link
                     href={taskHref(task)}
-                    className={cn("hover:bg-accent/50 flex items-center gap-3 px-3 py-2 text-sm", status === "done" && "opacity-70")}
+                    className={cn("hover:bg-accent/50 flex min-w-0 flex-1 items-center gap-3 px-3 py-2 text-sm", status === "done" && "opacity-70")}
                   >
                     <span className="text-muted-foreground w-16 shrink-0 font-mono text-xs">{task.short_id}</span>
                     <span className="min-w-0 flex-1 truncate">{task.title}</span>
@@ -206,6 +224,18 @@ function EpicTasks({ tasks }: { tasks: Task[] }) {
                       <span className="size-6 shrink-0" />
                     )}
                   </Link>
+                  {onRemove && (
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={`Remove ${task.short_id} from this epic`}
+                      title="Remove from epic"
+                      className="text-muted-foreground mr-1 shrink-0 opacity-60 group-hover:opacity-100"
+                      onClick={() => onRemove(task)}
+                    >
+                      <XIcon />
+                    </Button>
+                  )}
                 </li>
               );
             })}
