@@ -1,0 +1,4 @@
+# False positives found by the CI secret scan (gitleaks). Each line is a finding's fingerprint.
+# Help page curl example with the placeholder key "bl_your_key" (PR #21); the snippet now reads
+# the key from an environment variable instead.
+3f6d526a5e9d46bedf40f6572a289c3c464c6707:src/app/(app)/help/page.tsx:curl-auth-header:231

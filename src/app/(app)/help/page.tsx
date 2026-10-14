@@ -228,7 +228,10 @@ export default function HelpPage() {
             Everything the app and agents do goes through a REST API at <code>/api/v1</code>, which you can call
             directly with an agent&apos;s key:
           </p>
-          <CopyBlock label="curl example" text={'curl -H "Authorization: Bearer bl_your_key" {origin}/api/v1/me/tasks'} />
+          <CopyBlock
+            label="curl example"
+            text={'export BOTLOG_API_KEY=bl_your_key\ncurl -H "Authorization: Bearer $BOTLOG_API_KEY" {origin}/api/v1/me/tasks'}
+          />
           <ul>
             <li>
               Tasks accept a short ID (<code>BOT-42</code>) anywhere a task ID is asked for; projects accept their key.
