@@ -4,6 +4,7 @@ import { THEMES } from "./profile";
 export const TASK_STATUSES = ["backlog", "todo", "in_progress", "done"] as const;
 export const TASK_TYPES = ["feature", "bug", "improvement"] as const;
 export const TASK_PRIORITIES = ["none", "low", "medium", "high", "urgent"] as const;
+export const EPIC_STATUSES = ["planned", "in_progress", "done", "canceled"] as const;
 
 const taskStatus = z.enum(TASK_STATUSES);
 const taskType = z.enum(TASK_TYPES);
@@ -24,6 +25,8 @@ const taskFields = {
   epic_id: z.uuid().nullable(),
   assignee,
   due_date: z.iso.date().nullable(),
+  /** The task's labels, replacing the current ones. Each must belong to the task's project. */
+  label_ids: z.array(z.uuid()).max(20),
 };
 
 export const createProjectSchema = z
@@ -93,6 +96,8 @@ export const taskListFilters = z.object({
     .optional(),
   /** An epic id, or `none` for tasks without an epic. */
   epic_id: z.union([z.literal("none"), z.uuid()]).optional(),
+  /** Only tasks with this label. */
+  label: z.uuid().optional(),
   archived: z.enum(["true", "false"]).optional(),
 });
 
@@ -122,6 +127,39 @@ export const apiKeyListFilters = z.object({ revoked: z.enum(["true", "false"]).o
 
 export const updateProfileSchema = z
   .object({ name: z.string().trim().max(100), theme: z.enum(THEMES) })
+  .partial()
+  .strict()
+  .refine((body) => Object.keys(body).length > 0, "Send at least one field to change.");
+
+const epicFields = {
+  title: z.string().trim().min(1).max(500),
+  description: z.string().max(100_000),
+  status: z.enum(EPIC_STATUSES),
+  target_date: z.iso.date().nullable(),
+};
+
+export const createEpicSchema = z.object(epicFields).partial().required({ title: true }).strict();
+
+export const updateEpicSchema = z
+  .object(epicFields)
+  .partial()
+  .strict()
+  .refine((body) => Object.keys(body).length > 0, "Send at least one field to change.");
+
+export const epicListFilters = z.object({
+  status: z.enum(EPIC_STATUSES).optional(),
+  archived: z.enum(["true", "false"]).optional(),
+});
+
+const labelFields = {
+  name: z.string().trim().min(1).max(50),
+  color: z.string().regex(/^#[0-9a-fA-F]{6}$/, "A hex colour like #84cc16"),
+};
+
+export const createLabelSchema = z.object(labelFields).partial().required({ name: true }).strict();
+
+export const updateLabelSchema = z
+  .object(labelFields)
   .partial()
   .strict()
   .refine((body) => Object.keys(body).length > 0, "Send at least one field to change.");

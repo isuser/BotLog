@@ -98,12 +98,17 @@ describe.skipIf(!keyLive)("tools", () => {
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual([
       "add_comment",
+      "create_epic",
+      "create_label",
       "create_task",
       "get_task",
+      "list_epics",
+      "list_labels",
       "list_my_tasks",
       "list_projects",
       "list_tasks",
       "move_task",
+      "update_epic",
       "update_task",
     ]);
     expect(client.getInstructions()).toContain("list_my_tasks");
@@ -184,6 +189,39 @@ describe.skipIf(!keyLive)("tools", () => {
     expect(await tool("list_tasks", { project: "NOPE" })).toMatchObject({ isError: true, status: 404 });
     const task = (await tool<{ data: Task }>("create_task", { project: PROJECT, title: "No-op" })).data;
     expect(await tool("update_task", { id: task.id, version: task.version })).toMatchObject({ isError: true, status: 400 });
+  });
+
+  test("epics and labels: create them, file a task, and see it all in get_task", async () => {
+    const epic = await tool<{ data: { id: string; progress: { total: number } } }>("create_epic", { project: PROJECT, title: "Agent epic" });
+    expect(epic.isError, JSON.stringify(epic)).toBe(false);
+    await tool("create_label", { project: PROJECT, name: "Backend" });
+
+    const created = await tool<{ data: Task & { labels: { name: string }[]; epic: { id: string } } }>("create_task", {
+      project: PROJECT,
+      title: "Filed by the agent",
+      epic_id: epic.data.id,
+      labels: ["backend"],
+    });
+    expect(created.isError, JSON.stringify(created)).toBe(false);
+    expect(created.data.labels.map((l) => l.name)).toEqual(["Backend"]);
+    expect(created.data.epic.id).toBe(epic.data.id);
+
+    const unknown = await tool<{ error: { message: string } }>("update_task", { id: created.data.short_id, version: created.data.version, labels: ["Frontend"] });
+    expect(unknown.isError).toBe(true);
+    expect(unknown.error.message).toMatch(/No label "Frontend".*Backend.*create_label/);
+
+    const filtered = await tool<{ data: Task[] }>("list_tasks", { project: PROJECT, label: "Backend" });
+    expect(filtered.data.map((t) => t.title)).toEqual(["Filed by the agent"]);
+
+    const epics = await tool<{ data: { id: string; progress: { total: number } }[] }>("list_epics", { project: PROJECT });
+    expect(epics.data.find((e) => e.id === epic.data.id)?.progress.total).toBe(1);
+
+    const updated = await tool<{ data: { status: string } }>("update_epic", { id: epic.data.id, status: "in_progress" });
+    expect(updated.data.status).toBe("in_progress");
+
+    const full = await tool<{ data: { epic: { title: string }; labels: { name: string }[]; recent_activity: { action: string }[] } }>("get_task", { id: created.data.short_id });
+    expect(full.data.epic.title).toBe("Agent epic");
+    expect(full.data.recent_activity.map((a) => a.action)).toContain("label_added");
   });
 
   test("a revoked key can't connect", async () => {

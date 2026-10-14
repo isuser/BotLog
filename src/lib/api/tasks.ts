@@ -11,13 +11,18 @@ export const TASK_SELECT = `
   assignee_user_id, assignee_agent_id, due_date, version, archived_at, created_at, updated_at,
   project:project!inner(key),
   assignee_user:profile!task_assignee_user_id_fkey(id, name, email),
-  assignee_agent:agent!task_assignee_agent_id_fkey(id, name, avatar)
+  assignee_agent:agent!task_assignee_agent_id_fkey(id, name, avatar),
+  epic:epic(id, title, status),
+  task_labels:task_label(label:label(id, name, color))
 `;
 
 export type TaskRow = Database["public"]["Tables"]["task"]["Row"] & {
   project: { key: string };
   assignee_user: { id: string; name: string; email: string } | null;
   assignee_agent: { id: string; name: string; avatar: string | null } | null;
+  epic: { id: string; title: string; status: Database["public"]["Enums"]["epic_status"] } | null;
+  // Through the join table: PostgREST can't use it as a many-to-many (its keys are composite).
+  task_labels: { label: { id: string; name: string; color: string } }[];
 };
 
 export function serializeTask(row: TaskRow) {
@@ -34,6 +39,8 @@ export function serializeTask(row: TaskRow) {
     position: row.position,
     priority: row.priority,
     epic_id: row.epic_id,
+    epic: row.epic,
+    labels: (row.task_labels ?? []).map((tl) => tl.label).sort((a, b) => a.name.localeCompare(b.name)),
     assignee: row.assignee_user
       ? { type: "user" as const, ...row.assignee_user }
       : row.assignee_agent

@@ -100,6 +100,71 @@ describe("new users", () => {
   });
 });
 
+describe("set_task_labels", () => {
+  async function labelsOf(sub: string, taskId: string) {
+    return as(db, { sub }, async (tx) =>
+      (await tx.query<{ name: string }>(
+        "select l.name from task_label tl join label l on l.id = tl.label_id where tl.task_id = $1 order by l.name",
+        [taskId],
+      )).rows.map((r) => r.name),
+    );
+  }
+
+  async function makeLabels(sub: string, projectId: string, ...names: string[]) {
+    return as(db, { sub }, async (tx) => {
+      const ids: string[] = [];
+      for (const name of names) {
+        ids.push((await one<{ id: string }>(tx, "insert into label (project_id, name) values ($1, $2) returning id", [projectId, name])).id);
+      }
+      return ids;
+    });
+  }
+
+  const setLabels = (sub: string, taskId: string, version: number, ids: string[]) =>
+    as(db, { sub }, (tx) =>
+      one<{ v: number | null }>(tx, "select public.set_task_labels($1, $2, $3::uuid[]) as v", [taskId, version, ids]),
+    );
+
+  test("replaces the labels and bumps the version, logging each change", async () => {
+    const { userId, projectId } = await setup();
+    const task = await createTask(userId, projectId);
+    const [a, b, c] = await makeLabels(userId, projectId, "a", "b", "c");
+
+    expect((await setLabels(userId, task.id, 1, [a, b, b])).v).toBe(2);
+    expect(await labelsOf(userId, task.id)).toEqual(["a", "b"]);
+    expect((await setLabels(userId, task.id, 2, [b, c])).v).toBe(3);
+    expect(await labelsOf(userId, task.id)).toEqual(["b", "c"]);
+
+    const actions = await as(db, { sub: userId }, async (tx) =>
+      (await tx.query<{ action: string }>(
+        "select action from activity_log where entity_id = $1 and action like 'label%' order by seq",
+        [task.id],
+      )).rows.map((r) => r.action),
+    );
+    expect(actions).toEqual(["label_added", "label_added", "label_removed", "label_added"]);
+  });
+
+  test("returns null and changes nothing for a stale version", async () => {
+    const { userId, projectId } = await setup();
+    const task = await createTask(userId, projectId);
+    const [a] = await makeLabels(userId, projectId, "a");
+    expect((await setLabels(userId, task.id, 7, [a])).v).toBeNull();
+    expect(await labelsOf(userId, task.id)).toEqual([]);
+  });
+
+  test("rejects labels from another project, and other workspaces' tasks are invisible", async () => {
+    const owner = await setup();
+    const task = await createTask(owner.userId, owner.projectId);
+    const other = await setup();
+    const [foreign] = await makeLabels(other.userId, other.projectId, "theirs");
+    const [mine] = await makeLabels(owner.userId, owner.projectId, "mine");
+
+    await expect(setLabels(owner.userId, task.id, 1, [foreign])).rejects.toThrow(/foreign key/);
+    expect((await setLabels(other.userId, task.id, 1, [])).v).toBeNull();
+    expect((await setLabels(owner.userId, task.id, 1, [mine])).v).toBe(2);
+  });
+});
+
 describe("profile", () => {
   test("defaults to the Lime theme and lets its owner change theme and name", async () => {
     const { userId } = await setup();

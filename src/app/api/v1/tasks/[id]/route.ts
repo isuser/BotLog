@@ -1,5 +1,7 @@
+import { assertEpicUsable } from "@/lib/api/epics";
 import { fromPostgrest, versionConflict } from "@/lib/api/errors";
 import { json, parseBody, route } from "@/lib/api/handler";
+import { replaceTaskLabels, resolveLabelIds } from "@/lib/api/labels";
 import { updateTaskSchema } from "@/lib/api/schemas";
 import { assertNotArchived, assigneeColumns, getTaskRow, serializeTask, TASK_SELECT, type TaskRow } from "@/lib/api/tasks";
 
@@ -9,23 +11,36 @@ export const GET = route<Params>(async ({ db, params }) => {
   return json({ data: serializeTask(await getTaskRow(db, params.id)) });
 });
 
-/** Edits fields. `version` must match the task's current version, or the answer is 409. */
+/**
+ * Edits fields, including the epic and the labels (`label_ids` replaces the current set).
+ * `version` must match the task's current version, or the answer is 409.
+ */
 export const PATCH = route<Params>(async ({ db, request, params }) => {
-  const { version, assignee, ...fields } = await parseBody(request, updateTaskSchema);
+  const { version, assignee, label_ids, ...fields } = await parseBody(request, updateTaskSchema);
   const task = await getTaskRow(db, params.id);
   assertNotArchived(task);
   if (task.version !== version) throw versionConflict();
+  if (fields.epic_id && fields.epic_id !== task.epic_id) await assertEpicUsable(db, task.project_id, fields.epic_id);
+  const labelIds = label_ids && (await resolveLabelIds(db, task.project_id, label_ids));
 
-  const { data, error } = await db
-    .from("task")
-    .update({ ...fields, ...(assignee === undefined ? {} : assigneeColumns(assignee)) })
-    .eq("id", task.id)
-    .eq("version", version)
-    .select(TASK_SELECT)
-    .maybeSingle();
-  if (error) throw fromPostgrest(error);
-  if (!data) throw versionConflict();
-  return json({ data: serializeTask(data as unknown as TaskRow) });
+  const changes = { ...fields, ...(assignee === undefined ? {} : assigneeColumns(assignee)) };
+  let current = version;
+  if (Object.keys(changes).length > 0) {
+    const { data, error } = await db
+      .from("task")
+      .update(changes)
+      .eq("id", task.id)
+      .eq("version", current)
+      .select("version")
+      .maybeSingle();
+    if (error) throw fromPostgrest(error);
+    if (!data) throw versionConflict();
+    current = data.version;
+  }
+  // Labels change in one transaction behind the same version check.
+  if (labelIds && (await replaceTaskLabels(db, task.id, current, labelIds)) === null) throw versionConflict();
+
+  return json({ data: serializeTask(await getTaskRow(db, task.id)) });
 });
 
 /** Archives the task. It stays readable by ID and can be restored. */
