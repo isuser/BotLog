@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { THEMES } from "./profile";
 
 export const TASK_STATUSES = ["backlog", "todo", "in_progress", "done"] as const;
 export const TASK_TYPES = ["feature", "bug", "improvement"] as const;
@@ -118,3 +119,9 @@ export const agentListFilters = z.object({ archived: z.enum(["true", "false"]).o
 export const createApiKeySchema = z.object({ name: z.string().trim().min(1).max(100) }).strict();
 
 export const apiKeyListFilters = z.object({ revoked: z.enum(["true", "false"]).optional() });
+
+export const updateProfileSchema = z
+  .object({ name: z.string().trim().max(100), theme: z.enum(THEMES) })
+  .partial()
+  .strict()
+  .refine((body) => Object.keys(body).length > 0, "Send at least one field to change.");

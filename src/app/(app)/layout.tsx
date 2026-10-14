@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { BotlogLogo } from "@/components/logo";
 import { Toaster } from "@/components/ui/sonner";
 import { NavLinks, NavLinksFallback } from "./nav-links";
+import { ThemeSync } from "./theme-sync";
 import { UserMenu } from "./user-menu";
 
 export default function AppLayout({ children }: LayoutProps<"/">) {
@@ -25,6 +26,7 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
       </header>
       {children}
       <Toaster position="bottom-right" />
+      <ThemeSync />
     </div>
   );
 }
