@@ -9,6 +9,7 @@ import * as agentKeys from "@/app/api/v1/agents/[id]/api-keys/route";
 import * as agentRestore from "@/app/api/v1/agents/[id]/restore/route";
 import * as agentRoute from "@/app/api/v1/agents/[id]/route";
 import * as agents from "@/app/api/v1/agents/route";
+import * as me from "@/app/api/v1/me/route";
 import * as meTasks from "@/app/api/v1/me/tasks/route";
 import * as projectRoute from "@/app/api/v1/projects/[id]/route";
 import * as projectTasks from "@/app/api/v1/projects/[id]/tasks/route";
@@ -251,6 +252,30 @@ describe("comments, activity and my tasks", () => {
   });
 });
 
+describe("profile", () => {
+  test("reads and updates your own name and theme", async () => {
+    const res = await call(me.GET, { token: bob.token });
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    expect(res.body.data).toMatchObject({ id: bob.id, email: bob.email, theme: "lime" });
+
+    const updated = await call(me.PATCH, { method: "PATCH", token: bob.token, body: { name: "  Bob  ", theme: "sandpaper" } });
+    expect(updated.status, JSON.stringify(updated.body)).toBe(200);
+    expect(updated.body.data).toMatchObject({ id: bob.id, name: "Bob", theme: "sandpaper" });
+    expect((await call(me.GET, { token: bob.token })).body.data.theme).toBe("sandpaper");
+  });
+
+  test("rejects unknown themes, extra fields and empty bodies", async () => {
+    for (const body of [{ theme: "neon" }, { email: "x@example.com" }, {}]) {
+      const res = await call(me.PATCH, { method: "PATCH", token: bob.token, body });
+      expect(res.status, JSON.stringify(body)).toBe(400);
+    }
+  });
+
+  test("needs a signed-in person", async () => {
+    expect((await call(me.GET, {})).status).toBe(401);
+  });
+});
+
 describe.skipIf(!keyLive)("agents with API keys", () => {
   let agentId: string;
   let apiKey: string;
@@ -285,6 +310,11 @@ describe.skipIf(!keyLive)("agents with API keys", () => {
     const [latest] = activity.body.data;
     expect(latest).toMatchObject({ action: "moved", actor: { type: "ai", agent_id: agentId, user_id: alice.id, name: "Test bot" } });
     expect(latest.actor.api_key_id).toEqual(expect.any(String));
+  });
+
+  test("can't read or change their owner's profile", async () => {
+    expect((await call(me.GET, { token: apiKey })).status).toBe(403);
+    expect((await call(me.PATCH, { method: "PATCH", token: apiKey, body: { theme: "sandpaper" } })).status).toBe(403);
   });
 
   test("see only their owner's workspace", async () => {

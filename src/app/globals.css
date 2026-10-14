@@ -13,6 +13,8 @@
   --color-status-in-progress: var(--status-in-progress);
   --color-status-done: var(--status-done);
   --color-agent: var(--agent);
+  --color-mark: var(--mark);
+  --color-mark-columns: var(--mark-columns);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-inter), "Inter", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
@@ -65,9 +67,12 @@ body {
   font-family: var(--font-sans), sans-serif;
 }
 
-:root {
+/* Each theme sets every token, derived ones included, so any element with data-theme (like the
+   previews in Settings) renders in that theme, not just <html>. */
+:root,
+[data-theme="lime"] {
   /* Lime theme (the default). Values from the design system; see the design spec. Lime is a
-     dark theme, so the root layout also sets the .dark class for components' dark: styles. */
+     dark theme, so <html> also carries the .dark class for components' dark: styles. */
   color-scheme: dark;
   --brand: #c6f432;
   --brand-foreground: #0b0b0c;
@@ -110,12 +115,69 @@ body {
   --status-in-progress: var(--brand);
   --status-done: #f4f4f5;
   --agent: var(--brand);
+  /* Logo: a lime bot whose columns take the page background. */
+  --mark: var(--brand);
+  --mark-columns: var(--background);
   --chart-1: oklch(62.3% 0.214 259.815);
   --chart-2: oklch(72.3% 0.219 149.579);
   --chart-3: oklch(62.7% 0.265 303.9);
   --chart-4: oklch(70.5% 0.213 47.604);
   --chart-5: oklch(64.5% 0.246 16.439);
   --radius: 0.625rem;
+}
+
+[data-theme="sandpaper"] {
+  /* Sandpaper: warm and light. Lime stays a fill; where it would be text or a thin line it
+     becomes olive (brand-text, ring) to keep contrast on sand. */
+  color-scheme: light;
+  --brand-foreground: #1f1b17;
+  --brand-outline: #1f1b17;
+  --brand-text: #3f5a00;
+  --background: #f7f3ec;
+  --foreground: #1f1b17;
+  --card: #fffdf9;
+  --card-foreground: #1f1b17;
+  --popover: #fffdf9;
+  --popover-foreground: #1f1b17;
+  --secondary: #e0d6c5;
+  --secondary-foreground: #1f1b17;
+  --muted: #efe8dc;
+  --muted-foreground: #6b5f55;
+  --accent: #e0d6c5;
+  --accent-foreground: #1f1b17;
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  --border: #e0d6c5;
+  --input: #fffdf9;
+  --ring: #3f5a00;
+  --danger: #dc2626;
+  --danger-foreground: #ffffff;
+  --warning: #f5a524;
+  --warning-foreground: #1f1b17;
+  --info: #38bdf8;
+  --info-foreground: #1f1b17;
+  --success: #15803d;
+  --success-foreground: #ffffff;
+  --status-backlog: #a8998a;
+  --status-todo: #1f1b17;
+  --status-done: #1f1b17;
+  /* Logo: an ink bot with lime columns. */
+  --mark: #1f1b17;
+  --mark-columns: var(--brand);
+  /* Derived tokens, repeated so they resolve against Sandpaper's values. */
+  --primary: var(--brand);
+  --primary-foreground: var(--brand-foreground);
+  --danger-border: var(--danger);
+  --warning-border: var(--warning);
+  --info-border: var(--info);
+  --success-border: var(--success);
+  --status-in-progress: var(--brand);
+  --agent: var(--brand);
+  --chart-1: oklch(48.8% 0.243 264.376);
+  --chart-2: oklch(52.7% 0.154 150.069);
+  --chart-3: oklch(49.6% 0.265 301.924);
+  --chart-4: oklch(55.3% 0.195 38.402);
+  --chart-5: oklch(51.4% 0.222 16.935);
 }
 
 @layer base {

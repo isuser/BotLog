@@ -336,6 +336,7 @@ export type Database = {
           email: string
           id: string
           name: string
+          theme: string
           updated_at: string
           workspace_id: string
         }
@@ -344,6 +345,7 @@ export type Database = {
           email: string
           id: string
           name?: string
+          theme?: string
           updated_at?: string
           workspace_id: string
         }
@@ -352,6 +354,7 @@ export type Database = {
           email?: string
           id?: string
           name?: string
+          theme?: string
           updated_at?: string
           workspace_id?: string
         }

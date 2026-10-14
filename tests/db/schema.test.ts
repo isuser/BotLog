@@ -100,6 +100,44 @@ describe("new users", () => {
   });
 });
 
+describe("profile", () => {
+  test("defaults to the Lime theme and lets its owner change theme and name", async () => {
+    const { userId } = await setup();
+    const updated = await as(db, { sub: userId }, (tx) =>
+      one<{ theme: string; name: string }>(
+        tx,
+        "update profile set theme = 'sandpaper', name = 'Ada' where id = $1 returning theme, name",
+        [userId],
+      ),
+    );
+    expect(updated).toEqual({ theme: "sandpaper", name: "Ada" });
+
+    const fresh = await setup();
+    const profile = await as(db, { sub: fresh.userId }, (tx) => one<{ theme: string }>(tx, "select theme from profile"));
+    expect(profile.theme).toBe("lime");
+  });
+
+  test("only accepts known themes", async () => {
+    const { userId } = await setup();
+    await expect(
+      as(db, { sub: userId }, (tx) => tx.query("update profile set theme = 'neon' where id = $1", [userId])),
+    ).rejects.toThrow(/profile_theme_check/);
+  });
+
+  test("can't be changed by other users or by agents", async () => {
+    const owner = await setup();
+    const other = await setup();
+    const claims = await createAgent(owner.userId);
+    const changed = await as(db, { sub: other.userId }, async (tx) =>
+      (await tx.query("update profile set theme = 'sandpaper' where id = $1", [owner.userId])).affectedRows,
+    );
+    const byAgent = await as(db, claims, async (tx) =>
+      (await tx.query("update profile set theme = 'sandpaper'")).affectedRows,
+    );
+    expect({ changed, byAgent }).toEqual({ changed: 0, byAgent: 0 });
+  });
+});
+
 describe("workspace isolation", () => {
   test("users cannot see or write another workspace's data", async () => {
     const a = await setup();
