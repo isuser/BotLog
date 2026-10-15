@@ -5,7 +5,7 @@ import { TASK_STATUSES } from "./schemas";
 
 /** Project columns plus a count of active tasks per status. */
 export const PROJECT_SELECT =
-  "id, key, name, description, created_at, updated_at, backlog:task(count), todo:task(count), in_progress:task(count), done:task(count)";
+  "id, key, name, description, done_window_days, created_at, updated_at, backlog:task(count), todo:task(count), in_progress:task(count), done:task(count)";
 
 type CountEmbed = { count: number }[];
 
@@ -14,6 +14,7 @@ type ProjectRow = {
   key: string;
   name: string;
   description: string;
+  done_window_days: number;
   created_at: string;
   updated_at: string;
 } & Record<(typeof TASK_STATUSES)[number], CountEmbed>;
@@ -39,6 +40,7 @@ export function serializeProject(row: ProjectRow) {
     key: row.key,
     name: row.name,
     description: row.description,
+    done_window_days: row.done_window_days,
     task_counts: { ...counts, total: TASK_STATUSES.reduce((sum, s) => sum + counts[s], 0) },
     created_at: row.created_at,
     updated_at: row.updated_at,

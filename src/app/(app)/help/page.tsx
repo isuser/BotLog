@@ -107,15 +107,27 @@ export default function HelpPage() {
           <h2 id="tasks">Working with tasks</h2>
           <ul>
             <li>
-              <strong>Board:</strong> type in “Add a task” at the top of a column, drag cards between columns, click a
-              card to open it. Click the avatar on a card to assign it.
+              <strong>Board:</strong> To do, In progress and Done. Type in “Add a task” at the top of a column, drag
+              cards between columns, click a card to open it. Click the avatar on a card to assign it.
+            </li>
+            <li>
+              <strong>Backlog:</strong> its own tab, so a long backlog doesn&apos;t crowd the board. New tasks from
+              the API and agents land here unless they say otherwise. Drag rows to rank them; <strong>To do →</strong>{" "}
+              sends a task to the top of the board&apos;s To do column.
+            </li>
+            <li>
+              <strong>Done:</strong> finished tasks leave the board after 14 days so the column doesn&apos;t grow
+              forever. They stay Done, and still show in List, search, epics and to agents. Change the number of days
+              in the project&apos;s <strong>Settings</strong> under Board.
             </li>
             <li>
               <strong>Task panel:</strong> status, priority, type, assignee, due date, epic and labels, a Markdown
-              description, comments and activity. It has its own link you can share.
+              description, comments and activity (the latest changes; load older ones as you need them). It has its
+              own link you can share.
             </li>
             <li>
-              <strong>List:</strong> the same tasks as a table you can sort by any column.
+              <strong>List:</strong> every active task, backlog and older Done ones included, as a table you can sort
+              by any column.
             </li>
             <li>
               <strong>Epics:</strong> group tasks and show progress. Add new or existing tasks from an epic&apos;s page.
@@ -239,6 +251,10 @@ export default function HelpPage() {
             </li>
             <li>
               Edits send the task&apos;s <code>version</code>; a stale one gets <code>409</code>, so re-read and retry.
+            </li>
+            <li>
+              A task in Done has <code>done_at</code>, when it got there. A project&apos;s{" "}
+              <code>done_window_days</code> is how long finished tasks stay on the board.
             </li>
             <li>
               Errors are always <code>{'{ "error": { "code", "message" } }'}</code>. Lists page with{" "}

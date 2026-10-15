@@ -2,7 +2,9 @@
 
 import { useEffect } from "react";
 import useSWR from "swr";
+import useSWRInfinite from "swr/infinite";
 import { ActorAvatar, type Actor } from "@/components/actor-avatar";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { describeActivity, nameLookup } from "@/lib/client/activity";
 import { api, apiAll } from "@/lib/client/api";
@@ -10,7 +12,11 @@ import { fullDate, timeAgo } from "@/lib/client/format";
 import type { Activity, Agent, Epic, Label, Task } from "@/lib/client/types";
 import type { CurrentUser } from "./task-fields";
 
-const LIMIT = 15;
+/** Shown when a task opens; each "Load more" fetches the next few older entries. */
+const FIRST_PAGE = 5;
+const MORE = 10;
+
+type ActivityPage = { data: Activity[]; next_cursor: string | null };
 
 function entryActor({ actor }: Activity): Actor | null {
   if (actor.type === "ai" && actor.agent_id) {
@@ -25,10 +31,18 @@ function actorLabel({ actor }: Activity) {
   return actor.name || (actor.type === "ai" ? "An agent" : "Someone");
 }
 
-/** The task's latest changes, oldest first. Refetched whenever the task changes. */
+/**
+ * The task's latest changes, oldest first, with older ones loaded a page at a time on request.
+ * Refetched whenever the task changes.
+ */
 export function TaskActivity({ task, currentUser }: { task: Task; currentUser: CurrentUser }) {
-  const { data, error, mutate } = useSWR(`/tasks/${task.id}/activity?limit=${LIMIT}`, (path: string) =>
-    api<{ data: Activity[]; next_cursor: string | null }>(path),
+  const { data, error, mutate, size, setSize, isValidating } = useSWRInfinite(
+    (index, previous: ActivityPage | null) => {
+      if (index === 0) return `/tasks/${task.id}/activity?limit=${FIRST_PAGE}`;
+      if (!previous?.next_cursor) return null;
+      return `/tasks/${task.id}/activity?limit=${MORE}&cursor=${encodeURIComponent(previous.next_cursor)}`;
+    },
+    (path: string) => api<ActivityPage>(path),
   );
   const { data: agents } = useSWR("/agents", (path: string) => apiAll<Agent>(path));
   // Shared with the Epic and Labels fields, so these are usually cached already.
@@ -41,7 +55,10 @@ export function TaskActivity({ task, currentUser }: { task: Task; currentUser: C
   }, [task.version, mutate]);
 
   const names = nameLookup(currentUser, agents ?? [], task, { labels, epics });
-  const entries = (data?.data ?? [])
+  const hasMore = Boolean(data?.at(-1)?.next_cursor);
+  const loadingMore = isValidating && size > (data?.length ?? 0);
+  const entries = (data ?? [])
+    .flatMap((page) => page.data)
     .map((entry) => ({ entry, text: describeActivity(entry, names) }))
     .filter((item): item is { entry: Activity; text: string } => item.text !== null)
     .reverse();
@@ -58,7 +75,13 @@ export function TaskActivity({ task, currentUser }: { task: Task; currentUser: C
         <Skeleton className="h-12 w-full" />
       ) : (
         <ol className="flex flex-col gap-2.5">
-          {data.next_cursor && <li className="text-muted-foreground text-xs">Older changes not shown.</li>}
+          {hasMore && (
+            <li>
+              <Button variant="ghost" size="sm" className="text-muted-foreground -ml-3 h-7 text-xs" disabled={loadingMore} onClick={() => void setSize(size + 1)}>
+                {loadingMore ? "Loading…" : "Load older changes"}
+              </Button>
+            </li>
+          )}
           {entries.map(({ entry, text }) => {
             const actor = entryActor(entry);
             return (

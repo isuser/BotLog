@@ -24,7 +24,7 @@ async function readAll<T>(query: RangeQuery<T>): Promise<T[]> {
 export async function exportProject(db: Db, projectId: string) {
   const { data: project, error } = await db
     .from("project")
-    .select("id, key, name, description, created_at, updated_at")
+    .select("id, key, name, description, done_window_days, created_at, updated_at")
     .eq("id", projectId)
     .single();
   if (error) throw fromPostgrest(error);
@@ -46,7 +46,7 @@ export async function exportProject(db: Db, projectId: string) {
       db
         .from("task")
         .select(
-          "id, number, title, description, type, status, position, priority, epic_id, assignee_user_id, assignee_agent_id, due_date, version, archived_at, created_at, updated_at, task_labels:task_label(label_id)",
+          "id, number, title, description, type, status, position, priority, epic_id, assignee_user_id, assignee_agent_id, due_date, version, done_at, archived_at, created_at, updated_at, task_labels:task_label(label_id)",
         )
         .eq("project_id", projectId)
         .order("number")

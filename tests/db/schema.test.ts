@@ -417,6 +417,72 @@ describe("tasks", () => {
     );
     await expect(insert("assignee_agent_id", [claims.agent_id])).rejects.toThrow(/not an active agent/);
   });
+
+  test("done_at is set when a task moves to Done, kept while it stays, cleared when it leaves", async () => {
+    const { userId, projectId } = await setup();
+    const task = await createTask(userId, projectId);
+    const run = (sql: string) =>
+      as(db, { sub: userId }, (tx) => one<{ done_at: string | null }>(tx, `${sql} where id = $1 returning done_at`, [task.id]));
+
+    expect((await run("update task set title = 'x'")).done_at).toBeNull();
+    const done = (await run("update task set status = 'done'")).done_at;
+    expect(done).not.toBeNull();
+    expect((await run("update task set title = 'y'")).done_at).toEqual(done);
+    expect((await run("update task set status = 'todo'")).done_at).toBeNull();
+
+    const created = await as(db, { sub: userId }, (tx) =>
+      one<{ done_at: string | null }>(
+        tx,
+        "insert into task (project_id, title, position, status) values ($1, 't', 'a0', 'done') returning done_at",
+        [projectId],
+      ),
+    );
+    expect(created.done_at).not.toBeNull();
+  });
+
+  test("done_at can't be set by clients", async () => {
+    const { userId, projectId } = await setup();
+    const task = await createTask(userId, projectId);
+    await expect(
+      as(db, { sub: userId }, (tx) => tx.query("update task set done_at = now() where id = $1", [task.id])),
+    ).rejects.toThrow(/permission denied/);
+  });
+
+  test("moving to Done is logged as a move, without done_at", async () => {
+    const { userId, projectId } = await setup();
+    const task = await createTask(userId, projectId);
+    await as(db, { sub: userId }, (tx) => tx.query("update task set status = 'done' where id = $1", [task.id]));
+    const entry = await as(db, { sub: userId }, (tx) =>
+      one<{ action: string; changes: Record<string, unknown> }>(
+        tx,
+        "select action, changes from activity_log where entity_id = $1 order by seq desc limit 1",
+        [task.id],
+      ),
+    );
+    expect(entry.action).toBe("moved");
+    expect(Object.keys(entry.changes)).toEqual(["status"]);
+  });
+});
+
+describe("projects", () => {
+  test("done_window_days defaults to 14 and stays between 1 and 365", async () => {
+    const { userId, projectId } = await setup();
+    const set = (days: number) =>
+      as(db, { sub: userId }, (tx) =>
+        one<{ done_window_days: number }>(
+          tx,
+          "update project set done_window_days = $1 where id = $2 returning done_window_days",
+          [days, projectId],
+        ),
+      );
+    const current = await as(db, { sub: userId }, (tx) =>
+      one<{ done_window_days: number }>(tx, "select done_window_days from project where id = $1", [projectId]),
+    );
+    expect(current.done_window_days).toBe(14);
+    expect((await set(30)).done_window_days).toBe(30);
+    await expect(set(0)).rejects.toThrow(/check constraint/);
+    await expect(set(366)).rejects.toThrow(/check constraint/);
+  });
 });
 
 describe("labels", () => {

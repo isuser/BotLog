@@ -372,6 +372,7 @@ export type Database = {
         Row: {
           created_at: string
           description: string
+          done_window_days: number
           id: string
           key: string
           name: string
@@ -382,6 +383,7 @@ export type Database = {
         Insert: {
           created_at?: string
           description?: string
+          done_window_days?: number
           id?: string
           key: string
           name: string
@@ -392,6 +394,7 @@ export type Database = {
         Update: {
           created_at?: string
           description?: string
+          done_window_days?: number
           id?: string
           key?: string
           name?: string
@@ -416,6 +419,7 @@ export type Database = {
           assignee_user_id: string | null
           created_at: string
           description: string
+          done_at: string | null
           due_date: string | null
           epic_id: string | null
           id: string
@@ -435,6 +439,7 @@ export type Database = {
           assignee_user_id?: string | null
           created_at?: string
           description?: string
+          done_at?: string | null
           due_date?: string | null
           epic_id?: string | null
           id?: string
@@ -454,6 +459,7 @@ export type Database = {
           assignee_user_id?: string | null
           created_at?: string
           description?: string
+          done_at?: string | null
           due_date?: string | null
           epic_id?: string | null
           id?: string
