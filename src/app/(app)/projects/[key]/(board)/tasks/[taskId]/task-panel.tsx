@@ -35,7 +35,7 @@ export function TaskPanel({
 }) {
   const router = useRouter();
   const { mutate: mutateKey } = useSWRConfig();
-  const backHref = `/projects/${projectKey}${view === "list" ? "/list" : ""}`;
+  const backHref = `/projects/${projectKey}${view === "board" ? "" : `/${view}`}`;
   const { data: task, error, mutate } = useSWR(`/tasks/${taskRef}`, (path: string) =>
     api<{ data: Task }>(path).then((r) => r.data),
   );

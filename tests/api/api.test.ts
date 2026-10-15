@@ -115,6 +115,19 @@ describe("projects", () => {
     expect(rekey.status).toBe(400);
   });
 
+  test("the Done window defaults to 14 days and takes 1 to 365", async () => {
+    const read = await call(projectRoute.GET, { params: { id: PROJECT }, token: alice.token });
+    expect(read.body.data.done_window_days).toBe(14);
+
+    const set = (days: unknown) =>
+      call(projectRoute.PATCH, { method: "PATCH", params: { id: PROJECT }, token: alice.token, body: { done_window_days: days } });
+    expect((await set(30)).body.data.done_window_days).toBe(30);
+    expect((await set(0)).status).toBe(400);
+    expect((await set(366)).status).toBe(400);
+    expect((await set(1.5)).status).toBe(400);
+    expect((await set(14)).status).toBe(200);
+  });
+
   test("other workspaces can't see them", async () => {
     vi.stubEnv("ALLOWED_EMAILS", `${alice.email},${bob.email}`);
     const res = await call(projectRoute.GET, { params: { id: PROJECT }, token: bob.token });
@@ -191,6 +204,19 @@ describe("tasks", () => {
     });
     expect(toProgress.body.data.status).toBe("in_progress");
     expect(await listTitles("status=todo")).toEqual(["col B", "col A"]);
+  });
+
+  test("done_at is set by moving to Done and cleared by moving out", async () => {
+    const task = await createTask({ title: "Finish me" });
+    expect(task).toMatchObject({ done_at: null });
+    const done = await call(taskMove.POST, {
+      method: "POST", params: { id: task.id }, token: alice.token, body: { status: "done", version: task.version },
+    });
+    expect(done.body.data.done_at).toEqual(expect.any(String));
+    const reopened = await call(taskMove.POST, {
+      method: "POST", params: { id: task.id }, token: alice.token, body: { status: "todo", version: done.body.data.version },
+    });
+    expect(reopened.body.data.done_at).toBeNull();
   });
 
   test("archived tasks leave the board, stay readable and can be restored", async () => {

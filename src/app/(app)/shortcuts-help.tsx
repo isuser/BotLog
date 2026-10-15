@@ -18,6 +18,7 @@ export const SHORTCUT_GROUPS: { title: string; keys: [string[], string][] }[] = 
     title: "In a project",
     keys: [
       [["g", "b"], "Board"],
+      [["g", "k"], "Backlog"],
       [["g", "l"], "List"],
       [["g", "e"], "Epics"],
       [["g", "s"], "Project settings"],

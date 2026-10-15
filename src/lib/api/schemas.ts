@@ -45,6 +45,8 @@ export const updateProjectSchema = z
   .object({
     name: z.string().trim().min(1).max(100).optional(),
     description: z.string().max(10_000).optional(),
+    /** How many days a finished task stays on the board. */
+    done_window_days: z.number().int().min(1).max(365).optional(),
   })
   .strict()
   .refine((body) => Object.keys(body).length > 0, "Send at least one field to change.");

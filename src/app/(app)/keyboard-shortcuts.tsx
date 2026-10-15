@@ -13,6 +13,7 @@ const GO_TO: Record<string, (projectKey: string | null) => string | null> = {
   m: () => "/my-tasks",
   h: () => "/help",
   b: (key) => key && `/projects/${key}`,
+  k: (key) => key && `/projects/${key}/backlog`,
   l: (key) => key && `/projects/${key}/list`,
   e: (key) => key && `/projects/${key}/epics`,
   s: (key) => key && `/projects/${key}/settings`,

@@ -1,13 +1,16 @@
 import { describe, expect, test } from "vitest";
 import {
+  BOARD_COLUMNS,
   findColumn,
   flatten,
   groupByStatus,
+  inDoneWindow,
   moveToColumn,
   placement,
   reorderInColumn,
   samePlacement,
   syncTask,
+  taskHref,
 } from "./board";
 import type { Task, TaskStatus } from "./types";
 
@@ -101,5 +104,32 @@ describe("syncTask", () => {
   test("compares positions byte-wise, like the database", () => {
     // "Z" sorts before "a" in the C collation the position column uses.
     expect(ids(syncTask(tasks, placed("d", "backlog", "Zz")))).toEqual(["d", "a", "b", "c"]);
+  });
+});
+
+describe("board columns", () => {
+  test("leave the backlog to its own tab", () => {
+    expect(BOARD_COLUMNS.map((c) => c.status)).toEqual(["todo", "in_progress", "done"]);
+  });
+});
+
+describe("inDoneWindow", () => {
+  const now = Date.parse("2026-10-15T12:00:00Z");
+  test("keeps tasks finished within the window", () => {
+    expect(inDoneWindow({ done_at: "2026-10-02T12:00:01Z" }, 14, now)).toBe(true);
+    expect(inDoneWindow({ done_at: "2026-10-01T12:00:00Z" }, 14, now)).toBe(false);
+    expect(inDoneWindow({ done_at: "2026-10-14T12:00:00Z" }, 1, now)).toBe(false);
+  });
+  test("keeps a task just dropped into Done, before the API sets done_at", () => {
+    expect(inDoneWindow({ done_at: null }, 1, now)).toBe(true);
+  });
+});
+
+describe("taskHref", () => {
+  const t = { project_key: "BOT", short_id: "BOT-1" };
+  test("opens over the board, backlog or list", () => {
+    expect(taskHref(t)).toBe("/projects/BOT/tasks/BOT-1");
+    expect(taskHref(t, "backlog")).toBe("/projects/BOT/backlog/tasks/BOT-1");
+    expect(taskHref(t, "list")).toBe("/projects/BOT/list/tasks/BOT-1");
   });
 });

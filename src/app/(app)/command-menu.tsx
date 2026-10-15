@@ -5,6 +5,7 @@ import {
   CheckSquareIcon,
   CircleHelpIcon,
   FolderIcon,
+  InboxIcon,
   KeyboardIcon,
   LayoutGridIcon,
   LayersIcon,
@@ -54,7 +55,7 @@ export function CommandMenu({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** The project being viewed, if any, for its Board / List / Epics / Settings. */
+  /** The project being viewed, if any, for its Board / Backlog / List / Epics / Settings. */
   projectKey: string | null;
   onShowShortcuts: () => void;
 }) {
@@ -115,6 +116,7 @@ export function CommandMenu({
     ...(projectKey
       ? [
           { id: "board", label: `${projectKey} board`, icon: LayoutGridIcon, run: () => go(`/projects/${projectKey}`) },
+          { id: "backlog", label: `${projectKey} backlog`, icon: InboxIcon, run: () => go(`/projects/${projectKey}/backlog`) },
           { id: "list", label: `${projectKey} list`, icon: ListIcon, run: () => go(`/projects/${projectKey}/list`) },
           { id: "epics", label: `${projectKey} epics`, icon: LayersIcon, run: () => go(`/projects/${projectKey}/epics`) },
           { id: "project-settings", label: `${projectKey} settings`, icon: SlidersHorizontalIcon, run: () => go(`/projects/${projectKey}/settings`) },

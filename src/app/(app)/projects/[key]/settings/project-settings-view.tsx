@@ -27,7 +27,7 @@ import { LABEL_COLORS } from "@/lib/client/task-labels";
 import type { Epic, Label, Project, Task } from "@/lib/client/types";
 import { cn } from "@/lib/utils";
 
-/** A project's settings: its name and description, its labels, and its archived tasks and epics. */
+/** A project's settings: its name and description, the board's Done window, its labels, and its archived tasks and epics. */
 export function ProjectSettingsView({ projectKey }: { projectKey: string }) {
   const { data: project } = useSWR(`/projects/${projectKey}`, (path: string) =>
     api<{ data: Project }>(path).then((r) => r.data),
@@ -37,6 +37,7 @@ export function ProjectSettingsView({ projectKey }: { projectKey: string }) {
     <main className="mx-auto flex w-full max-w-[77rem] flex-1 flex-col overflow-y-auto px-4 pb-8 [&>*]:shrink-0">
       <div className="flex max-w-3xl flex-col gap-10">
         {project ? <GeneralSection key={project.updated_at} project={project} /> : <Skeleton className="h-40 w-full" />}
+        {project && <BoardSection key={project.updated_at} project={project} />}
         <LabelsSection projectKey={projectKey} />
         <ArchivedSection projectKey={projectKey} />
         <Section
@@ -118,6 +119,59 @@ function GeneralSection({ project }: { project: Project }) {
           />
         </div>
         <Button type="submit" className="self-start" disabled={!changed || !name.trim() || saving}>
+          {saving ? "Saving…" : "Save"}
+        </Button>
+      </form>
+    </Section>
+  );
+}
+
+function BoardSection({ project }: { project: Project }) {
+  const { mutate } = useSWRConfig();
+  const [days, setDays] = useState(String(project.done_window_days));
+  const [saving, setSaving] = useState(false);
+  const value = Number(days);
+  const valid = Number.isInteger(value) && value >= 1 && value <= 365;
+
+  async function save(event: React.FormEvent) {
+    event.preventDefault();
+    setSaving(true);
+    try {
+      const { data } = await api<{ data: Project }>(`/projects/${project.key}`, {
+        method: "PATCH",
+        json: { done_window_days: value },
+      });
+      await mutate(`/projects/${project.key}`, data, { revalidate: false });
+      toast("Project saved");
+    } catch (e) {
+      toast.error(errorMessage(e));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Section
+      id="settings-board"
+      title="Board"
+      description="Finished tasks leave the board's Done column after this many days. They stay Done, and still show in List, search and to agents."
+    >
+      <form onSubmit={save} className="flex flex-wrap items-end gap-3">
+        <div className="grid gap-2">
+          <FieldLabel htmlFor="project-done-window">Days in Done</FieldLabel>
+          <Input
+            id="project-done-window"
+            type="number"
+            inputMode="numeric"
+            min={1}
+            max={365}
+            required
+            value={days}
+            onChange={(e) => setDays(e.target.value)}
+            className="w-28"
+          />
+        </div>
+        <Button type="submit" disabled={!valid || value === project.done_window_days || saving}>
           {saving ? "Saving…" : "Save"}
         </Button>
       </form>

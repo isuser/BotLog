@@ -8,7 +8,7 @@ type TaskStatus = Database["public"]["Enums"]["task_status"];
 
 export const TASK_SELECT = `
   id, project_id, number, epic_id, title, description, type, status, position, priority,
-  assignee_user_id, assignee_agent_id, due_date, version, archived_at, created_at, updated_at,
+  assignee_user_id, assignee_agent_id, due_date, version, done_at, archived_at, created_at, updated_at,
   project:project!inner(key),
   assignee_user:profile!task_assignee_user_id_fkey(id, name, email),
   assignee_agent:agent!task_assignee_agent_id_fkey(id, name, avatar),
@@ -48,6 +48,7 @@ export function serializeTask(row: TaskRow) {
         : null,
     due_date: row.due_date,
     version: row.version,
+    done_at: row.done_at,
     archived_at: row.archived_at,
     created_at: row.created_at,
     updated_at: row.updated_at,

@@ -1,6 +1,7 @@
 "use client";
 
 import { useDroppable } from "@dnd-kit/core";
+import type { ReactNode } from "react";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { STATUS_COLORS } from "@/lib/client/task-labels";
 import type { Task, TaskStatus } from "@/lib/client/types";
@@ -13,11 +14,13 @@ export function BoardColumn({
   title,
   tasks,
   onAdd,
+  footer,
 }: {
   status: TaskStatus;
   title: string;
   tasks: Task[];
   onAdd: (status: TaskStatus, title: string) => Promise<void>;
+  footer?: ReactNode;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
 
@@ -25,7 +28,7 @@ export function BoardColumn({
     <section
       aria-label={title}
       className={cn(
-        "bg-muted flex w-[85vw] max-w-80 shrink-0 snap-start flex-col gap-3 rounded-xl border border-t-4 p-3 sm:w-72",
+        "bg-muted flex min-h-0 w-[85vw] max-w-80 shrink-0 snap-start flex-col gap-3 rounded-xl border border-t-4 p-3 sm:w-72",
         STATUS_COLORS[status].edge,
       )}
     >
@@ -43,13 +46,14 @@ export function BoardColumn({
         </span>
       </header>
 
-      <QuickAdd columnTitle={title} onAdd={(t) => onAdd(status, t)} focusOnShortcut={status === "backlog"} />
+      <QuickAdd columnTitle={title} onAdd={(t) => onAdd(status, t)} focusOnShortcut={status === "todo"} />
 
       <SortableContext id={status} items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
         <ul
           ref={setNodeRef}
           className={cn(
-            "flex min-h-24 flex-1 flex-col gap-2 rounded-lg transition-colors",
+            // Every column is as tall as the board; long ones scroll on their own.
+            "-mx-1 flex min-h-24 flex-1 flex-col gap-2 overflow-y-auto rounded-lg px-1 transition-colors",
             status === "done" && "[&>li]:opacity-70",
             isOver && tasks.length === 0 && "bg-accent/50",
           )}
@@ -59,6 +63,7 @@ export function BoardColumn({
           ))}
         </ul>
       </SortableContext>
+      {footer}
     </section>
   );
 }

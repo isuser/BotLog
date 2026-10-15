@@ -21,9 +21,10 @@ import useSWR from "swr";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api, apiAll, ApiRequestError, isConflict } from "@/lib/client/api";
 import {
-  COLUMNS,
+  BOARD_COLUMNS,
   flatten,
   groupByStatus,
+  inDoneWindow,
   moveToColumn,
   placement,
   reorderInColumn,
@@ -36,7 +37,7 @@ import { BoardColumn } from "./board-column";
 import { TaskCard } from "./task-card";
 
 export function Board({ projectKey }: { projectKey: string }) {
-  const { error: projectError } = useSWR(`/projects/${projectKey}`, (path: string) =>
+  const { data: project, error: projectError } = useSWR(`/projects/${projectKey}`, (path: string) =>
     api<{ data: Project }>(path).then((r) => r.data),
   );
   // Refetched whenever the window regains focus (SWR's default), so changes made by
@@ -49,7 +50,14 @@ export function Board({ projectKey }: { projectKey: string }) {
   const dragRef = useRef<{ start: Columns; current: Columns } | null>(null);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
 
+  // Columns hold every active task, backlog and older Done ones included, so moves keep their
+  // places; the board just doesn't show those.
   const columns = useMemo(() => dragColumns ?? groupByStatus(tasks ?? []), [dragColumns, tasks]);
+  // When the board opened; good enough for a window counted in days.
+  const [now] = useState(() => Date.now());
+  const doneWindow = project?.done_window_days ?? 14;
+  const recentDone = columns.done.filter((t) => inDoneWindow(t, doneWindow, now));
+  const olderDone = columns.done.length - recentDone.length;
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
@@ -163,9 +171,25 @@ export function Board({ projectKey }: { projectKey: string }) {
         >
           <div className="flex flex-1 snap-x snap-mandatory scroll-px-4 overflow-x-auto px-4 sm:snap-none">
             {/* Centred while the columns fit; scrolls from the left edge when they don't. */}
-            <div className="mx-auto flex w-max items-start gap-4">
-              {COLUMNS.map(({ status, title }) => (
-                <BoardColumn key={status} status={status} title={title} tasks={columns[status]} onAdd={addTask} />
+            <div className="mx-auto flex w-max gap-4">
+              {BOARD_COLUMNS.map(({ status, title }) => (
+                <BoardColumn
+                  key={status}
+                  status={status}
+                  title={title}
+                  tasks={status === "done" ? recentDone : columns[status]}
+                  onAdd={addTask}
+                  footer={
+                    status === "done" && olderDone > 0 ? (
+                      <p className="text-muted-foreground px-1 text-xs">
+                        {olderDone} {olderDone === 1 ? "task" : "tasks"} done over {doneWindow} days ago.{" "}
+                        <Link href={`/projects/${projectKey}/list`} className="underline">
+                          See them in List
+                        </Link>
+                      </p>
+                    ) : null
+                  }
+                />
               ))}
             </div>
           </div>
@@ -187,9 +211,9 @@ function reportError(error: unknown) {
 
 export function BoardSkeleton() {
   return (
-    <div className="mx-auto flex w-full max-w-[77rem] gap-4 overflow-hidden px-4">
-      {COLUMNS.map(({ status }) => (
-        <Skeleton key={status} className="h-96 w-[85vw] max-w-80 shrink-0 rounded-xl sm:w-72" />
+    <div className="mx-auto flex min-h-0 w-full max-w-[60rem] flex-1 justify-center gap-4 overflow-hidden px-4">
+      {BOARD_COLUMNS.map(({ status }) => (
+        <Skeleton key={status} className="h-full w-[85vw] max-w-80 shrink-0 rounded-xl sm:w-72" />
       ))}
     </div>
   );

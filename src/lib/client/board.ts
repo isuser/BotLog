@@ -9,6 +9,19 @@ export const COLUMNS: { status: TaskStatus; title: string }[] = [
 
 const STATUSES = COLUMNS.map((c) => c.status);
 
+/** The board's columns. The backlog has its own tab, so a long one doesn't crowd the board. */
+export const BOARD_COLUMNS = COLUMNS.filter((c) => c.status !== "backlog");
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Whether a Done task is still inside the project's Done window, so it shows on the board.
+ * One without `done_at` was just dropped into Done here and hasn't been saved yet.
+ */
+export function inDoneWindow(task: Pick<Task, "done_at">, windowDays: number, now: number): boolean {
+  return !task.done_at || now - Date.parse(task.done_at) < windowDays * DAY_MS;
+}
+
 export type Columns = Record<TaskStatus, Task[]>;
 
 const isStatus = (id: string): id is TaskStatus => (STATUSES as string[]).includes(id);
@@ -111,8 +124,8 @@ export function syncTask(tasks: Task[], task: Task): Task[] {
 }
 
 /** Which project page a task panel opens over. */
-export type TaskView = "board" | "list";
+export type TaskView = "board" | "backlog" | "list";
 
-/** A task's URL, open over its project's board (the shareable link) or list. */
+/** A task's URL, open over its project's board (the shareable link), backlog or list. */
 export const taskHref = (task: Pick<Task, "project_key" | "short_id">, view: TaskView = "board") =>
-  `/projects/${task.project_key}${view === "list" ? "/list" : ""}/tasks/${task.short_id}`;
+  `/projects/${task.project_key}${view === "board" ? "" : `/${view}`}/tasks/${task.short_id}`;
