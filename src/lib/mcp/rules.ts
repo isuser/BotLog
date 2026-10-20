@@ -5,8 +5,8 @@
 export const AGENT_RULES = [
   "Call list_my_tasks to find work. Don't take tasks assigned to someone else.",
   "Start each new task with a fresh context: clear the previous conversation, then call get_task. It returns everything you need: description, epic, labels, comments and recent activity.",
-  "Move a task to in_progress when you start it.",
-  "When finished, add a comment with a short summary, then move it to done.",
+  "Move a task to in_progress when you start it, or to the column the user asked for (move_task with column; list_columns shows a project's columns).",
+  "When finished, add a comment with a short summary, then move it to done, or to the column the user asked for.",
   "If blocked, comment why and leave the status unchanged.",
   "Never archive tasks or epics unless asked.",
   "Writes need the task's current version. On a conflict error (409), call get_task again and retry with the new version.",
