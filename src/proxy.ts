@@ -3,6 +3,8 @@ import { isEmailAllowed } from "@/lib/auth/allowlist";
 import { updateSession, withSessionCookies } from "@/lib/supabase/proxy";
 
 const SIGN_IN = "/sign-in";
+// Pages for people who aren't signed in yet: sign-in, and where Google sign-in comes back to.
+const PUBLIC_PATHS = new Set([SIGN_IN, "/auth/callback"]);
 
 /**
  * Keeps the Supabase session fresh and sends anyone who isn't signed in (or isn't on the
@@ -20,7 +22,7 @@ export async function proxy(request: NextRequest) {
   const signedIn = Boolean(claims?.sub) && isEmailAllowed(claims?.email as string | undefined);
   const onSignIn = pathname === SIGN_IN;
 
-  if (!signedIn && !onSignIn) {
+  if (!signedIn && !PUBLIC_PATHS.has(pathname)) {
     const url = request.nextUrl.clone();
     url.pathname = SIGN_IN;
     url.search = "";

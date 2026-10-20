@@ -12,6 +12,8 @@ const SECTIONS = [
   { id: "env", title: "3. Environment" },
   { id: "run", title: "4. Run it" },
   { id: "https", title: "5. HTTPS" },
+  { id: "google", title: "Google sign-in" },
+  { id: "people", title: "Adding people" },
   { id: "backups", title: "Backups" },
   { id: "updates", title: "Updates" },
   { id: "troubleshooting", title: "Troubleshooting" },
@@ -53,6 +55,16 @@ const ENV: { name: string; required: boolean; what: React.ReactNode }[] = [
     name: "ALLOWED_EMAILS",
     required: true,
     what: "Comma-separated emails that may sign in. Leave empty only if you mean to run a public instance.",
+  },
+  {
+    name: "GOOGLE_SIGN_IN",
+    required: false,
+    what: (
+      <>
+        <code>true</code> shows <strong>Continue with Google</strong> on the sign-in page. Set up Google first (see{" "}
+        <a href="#google">Google sign-in</a>).
+      </>
+    ),
   },
   { name: "RATE_LIMIT_API_KEY_PER_MINUTE", required: false, what: "Requests a minute per agent API key. Default 120." },
   { name: "RATE_LIMIT_USER_PER_MINUTE", required: false, what: "Requests a minute per person. Default 600." },
@@ -216,10 +228,72 @@ node --env-file=.env .next/standalone/server.js`}
 }`} />
           <p>
             Keep port 3000 private to the machine (Docker Compose already binds it to <code>127.0.0.1</code>), so
-            nothing reaches Botlog without HTTPS. Sign-in cookies need HTTPS. Realtime connects from the browser straight to Supabase, so the proxy doesn&apos;t
+            nothing reaches Botlog without HTTPS. Sign-in cookies need HTTPS. The proxy must pass the original{" "}
+            <code>Host</code> header through (Caddy does; on nginx add <code>proxy_set_header Host $host;</code>), or
+            Google sign-in sends people back to the wrong address. Realtime connects from the browser straight to Supabase, so the proxy doesn&apos;t
             need websockets. Then open your address, sign in, and{" "}
             <Link href="/help#agents">set up an agent</Link>.
           </p>
+
+          <h2 id="google">Google sign-in (optional)</h2>
+          <p>
+            Lets people sign in with their Google account instead of a password. It&apos;s free and needs no email
+            setup. With sign-ups off in Supabase, only people who already have a Botlog account (and are in{" "}
+            <code>ALLOWED_EMAILS</code>) get in; Google is just another way to prove who they are. It trusts whoever
+            controls the Google account with that email, so only use it for addresses that really are the
+            person&apos;s Google account (Gmail or their own Google Workspace).
+          </p>
+          <ol>
+            <li>
+              In <a href="https://console.cloud.google.com">Google Cloud</a>, create a project, open{" "}
+              <strong>Google Auth Platform</strong> and click Get started: your app name, a support email,
+              audience <strong>External</strong>.
+            </li>
+            <li>
+              Under <strong>Audience</strong>, leave it in Testing and add everyone who will sign in as a test user
+              (up to 100). The test-user list works as a second allowlist. Publishing instead needs a home page and
+              privacy policy on a verified domain.
+            </li>
+            <li>
+              Under <strong>Clients</strong>, create a <strong>Web application</strong> client. Authorized redirect
+              URI: your Supabase callback,{" "}
+              <code>https://your-project-ref.supabase.co/auth/v1/callback</code>. Copy the client ID and secret.
+            </li>
+            <li>
+              In Supabase, under Authentication → Sign In / Providers → <strong>Google</strong>, turn it on and paste
+              the client ID and secret. Leave <strong>Allow new users to sign up</strong> (on the same page, under
+              User Signups) off.
+            </li>
+            <li>
+              Under Authentication → URL Configuration → <strong>Redirect URLs</strong>, add{" "}
+              <code>https://botlog.example.com/auth/callback</code> (your address).
+            </li>
+            <li>
+              Set <code>GOOGLE_SIGN_IN=true</code> and redeploy. Setting it back to <code>false</code> turns Google
+              sign-in off again.
+            </li>
+          </ol>
+          <p>
+            Google&apos;s screen names your Supabase project address rather than Botlog, and may warn that the app
+            isn&apos;t verified while it&apos;s in Testing; that&apos;s expected.
+          </p>
+
+          <h2 id="people">Adding people</h2>
+          <p>
+            Each account gets its own workspace; people don&apos;t see each other&apos;s projects. To let someone in:
+          </p>
+          <ol>
+            <li>
+              Add their email to <code>ALLOWED_EMAILS</code> and redeploy (env changes only apply to a new
+              deployment).
+            </li>
+            <li>
+              In Supabase, go to Authentication → Users → <strong>Add user</strong> with that email and Auto confirm
+              on. With Google sign-in, use their Google email and any long random password (they won&apos;t need
+              it), and add them as a test user in Google Cloud; they then use <strong>Continue with Google</strong>.
+              Without it, set a password and send it to them privately.
+            </li>
+          </ol>
 
           <h2 id="backups">Backups</h2>
           <ul>
@@ -260,6 +334,19 @@ pnpm exec supabase db dump --linked --data-only -f data.sql`}
             <li>
               <strong>Can&apos;t sign in:</strong> the email must be in <code>ALLOWED_EMAILS</code> and the user must
               exist (and be confirmed) in Supabase.
+            </li>
+            <li>
+              <strong>“There&apos;s no Botlog account for that Google account”:</strong> create the user first
+              (Adding people), with the same email as their Google account.
+            </li>
+            <li>
+              <strong>Google says “Access blocked” or the app is in testing:</strong> add their Google email as a test
+              user under Google Auth Platform → Audience.
+            </li>
+            <li>
+              <strong>Google sign-in ends on Supabase&apos;s page or the home page without signing in:</strong>{" "}
+              <code>/auth/callback</code> on your address is missing from Supabase&apos;s Redirect URLs, or the
+              Google client&apos;s redirect URI isn&apos;t your Supabase callback.
             </li>
             <li>
               <strong>Agents get errors on every request:</strong> the signing key isn&apos;t trusted yet. Check it was

@@ -61,6 +61,16 @@ const FAQ: { q: string; a: React.ReactNode }[] = [
       </>
     ),
   },
+  {
+    q: "How do I give someone else their own Botlog?",
+    a: (
+      <>
+        Whoever runs your Botlog creates an account for them; they get a workspace of their own and don&apos;t see
+        your projects. See <Link href="/help/self-hosting#people">Adding people</Link>. If Google sign-in is on, they
+        use <strong>Continue with Google</strong> with that account&apos;s email.
+      </>
+    ),
+  },
 ];
 
 /** In-app docs: how Botlog works, how to connect an agent, the API, shortcuts and an FAQ. */
