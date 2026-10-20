@@ -3,6 +3,7 @@ import { McpServer, type CallToolResult } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import * as epicRoute from "@/app/api/v1/epics/[id]/route";
 import * as meTasks from "@/app/api/v1/me/tasks/route";
+import * as projectColumns from "@/app/api/v1/projects/[id]/columns/route";
 import * as projectEpics from "@/app/api/v1/projects/[id]/epics/route";
 import * as projectLabels from "@/app/api/v1/projects/[id]/labels/route";
 import * as projectTasks from "@/app/api/v1/projects/[id]/tasks/route";
@@ -64,6 +65,12 @@ const epicFields = {
 };
 
 type Label = { id: string; name: string };
+type Column = { id: string; name: string; hidden: boolean };
+
+const column = z
+  .string()
+  .min(1)
+  .describe("Column name (like In review) or UUID, from list_columns");
 
 type Data<T = unknown> = { data: T };
 
@@ -96,6 +103,27 @@ export function createBotlogServer({ apiKey, agentId }: { apiKey: string; agentI
       cursor = page.next_cursor ?? undefined;
     } while (cursor);
     return labels;
+  };
+
+  /** A project's columns, in board order (projects have a handful, so one page). */
+  const projectColumnList = async (project: string) =>
+    ((await callApi(projectColumns.GET, apiKey, { params: { id: project }, query: { limit: 100 } })) as Data<Column[]>)
+      .data;
+
+  /** A column name or id to its id. Unknown names fail with the project's column names listed. */
+  const toColumnId = async (project: string, ref: string | undefined) => {
+    if (ref === undefined) return undefined;
+    const columns = await projectColumnList(project);
+    const match = columns.find((c) => c.id === ref.toLowerCase() || c.name.toLowerCase() === ref.trim().toLowerCase());
+    if (!match) {
+      throw new McpApiError(400, {
+        error: {
+          code: "invalid_reference",
+          message: `No column "${ref}" in this project (columns: ${columns.map((c) => c.name).join(", ")}).`,
+        },
+      });
+    }
+    return match.id;
   };
 
   /** Label names or ids to ids. Unknown names fail with the project's label names listed. */
@@ -147,6 +175,7 @@ export function createBotlogServer({ apiKey, agentId }: { apiKey: string; agentI
       inputSchema: z.object({
         project: projectRef,
         status: statuses,
+        column: column.optional().describe("Only tasks in this column (name or UUID)"),
         type: z.enum(TASK_TYPES).optional(),
         priority: z.enum(TASK_PRIORITIES).optional(),
         assignee: assignee.optional(),
@@ -157,13 +186,14 @@ export function createBotlogServer({ apiKey, agentId }: { apiKey: string; agentI
       }),
       annotations: { readOnlyHint: true },
     },
-    ({ project, status, assignee, label, ...filters }) =>
+    ({ project, status, column, assignee, label, ...filters }) =>
       run(async () =>
         callApi(projectTasks.GET, apiKey, {
           params: { id: project },
           query: {
             ...filters,
             status: status?.join(","),
+            column_id: await toColumnId(project, column),
             assignee: assignee && (assignee === "me" ? `agent:${agentId}` : assignee.toLowerCase()),
             label: label && (await toLabelIds(project, [label]))?.[0],
           },
@@ -202,20 +232,26 @@ export function createBotlogServer({ apiKey, agentId }: { apiKey: string; agentI
     "create_task",
     {
       description:
-        "Create a task at the top of its status column (backlog by default), optionally in an epic and with labels.",
+        "Create a task at the top of a column: `column`, or the column for `status` (backlog by default). Optionally in an epic and with labels.",
       inputSchema: z.object({
         project: projectRef,
         ...taskFields,
         title: z.string().min(1).max(500),
         status: status.optional(),
+        column: column.optional().describe("Column name or UUID from list_columns. Send this or status, not both."),
       }),
     },
-    ({ project, assignee, labels, ...fields }) =>
+    ({ project, assignee, labels, column, ...fields }) =>
       run(async () =>
         callApi(projectTasks.POST, apiKey, {
           method: "POST",
           params: { id: project },
-          body: { ...fields, assignee: toAssignee(assignee), label_ids: await toLabelIds(project, labels) },
+          body: {
+            ...fields,
+            column_id: await toColumnId(project, column),
+            assignee: toAssignee(assignee),
+            label_ids: await toLabelIds(project, labels),
+          },
         }),
       ),
   );
@@ -246,17 +282,25 @@ export function createBotlogServer({ apiKey, agentId }: { apiKey: string; agentI
     "move_task",
     {
       description:
-        "Change a task's status and/or its position in the column. Without after_id or before_id it goes to the top of the column.",
+        "Move a task to another column, or to a status's column, and/or change its position in the column. Without after_id or before_id it goes to the top of the column. A status it already has leaves it in its current column.",
       inputSchema: z.object({
         id: taskId,
         version,
         status: status.optional(),
+        column: column.optional().describe("Column name or UUID from list_columns. Send this or status, not both."),
         after_id: z.string().min(1).optional().describe("Task that should end up directly above it"),
         before_id: z.string().min(1).optional().describe("Task that should end up directly below it"),
       }),
     },
-    ({ id, ...body }) =>
-      run(() => callApi(taskMove.POST, apiKey, { method: "POST", params: { id }, body })),
+    ({ id, column, ...body }) =>
+      run(async () => {
+        let columnId: string | undefined;
+        if (column !== undefined) {
+          const task = (await callApi(taskRoute.GET, apiKey, { params: { id } })) as Data<{ project_id: string }>;
+          columnId = await toColumnId(task.data.project_id, column);
+        }
+        return callApi(taskMove.POST, apiKey, { method: "POST", params: { id }, body: { ...body, column_id: columnId } });
+      }),
   );
 
   server.registerTool(
@@ -287,6 +331,17 @@ export function createBotlogServer({ apiKey, agentId }: { apiKey: string; agentI
       inputSchema: z.object({ id: z.string().min(1).describe("Epic UUID"), ...epicFields, title: epicFields.title.optional() }),
     },
     ({ id, ...body }) => run(() => callApi(epicRoute.PATCH, apiKey, { method: "PATCH", params: { id }, body })),
+  );
+
+  server.registerTool(
+    "list_columns",
+    {
+      description:
+        "List a project's board columns in order: name, the status its tasks count as (counts_as), whether it's hidden, and its task count.",
+      inputSchema: z.object({ project: projectRef }),
+      annotations: { readOnlyHint: true },
+    },
+    ({ project }) => run(async () => ({ data: await projectColumnList(project) })),
   );
 
   server.registerTool(

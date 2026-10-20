@@ -199,6 +199,50 @@ export type Database = {
           },
         ]
       }
+      board_column: {
+        Row: {
+          counts_as: Database["public"]["Enums"]["task_status"]
+          created_at: string
+          hidden: boolean
+          id: string
+          kind: Database["public"]["Enums"]["board_column_kind"]
+          name: string
+          position: string
+          project_id: string
+          updated_at: string
+        }
+        Insert: {
+          counts_as?: Database["public"]["Enums"]["task_status"]
+          created_at?: string
+          hidden?: boolean
+          id?: string
+          kind?: Database["public"]["Enums"]["board_column_kind"]
+          name: string
+          position: string
+          project_id: string
+          updated_at?: string
+        }
+        Update: {
+          counts_as?: Database["public"]["Enums"]["task_status"]
+          created_at?: string
+          hidden?: boolean
+          id?: string
+          kind?: Database["public"]["Enums"]["board_column_kind"]
+          name?: string
+          position?: string
+          project_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "board_column_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "project"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       comment: {
         Row: {
           author_agent_id: string | null
@@ -417,6 +461,7 @@ export type Database = {
           archived_at: string | null
           assignee_agent_id: string | null
           assignee_user_id: string | null
+          column_id: string
           created_at: string
           description: string
           done_at: string | null
@@ -437,6 +482,7 @@ export type Database = {
           archived_at?: string | null
           assignee_agent_id?: string | null
           assignee_user_id?: string | null
+          column_id?: string
           created_at?: string
           description?: string
           done_at?: string | null
@@ -457,6 +503,7 @@ export type Database = {
           archived_at?: string | null
           assignee_agent_id?: string | null
           assignee_user_id?: string | null
+          column_id?: string
           created_at?: string
           description?: string
           done_at?: string | null
@@ -474,6 +521,13 @@ export type Database = {
           version?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "task_column_fkey"
+            columns: ["column_id", "project_id"]
+            isOneToOne: false
+            referencedRelation: "board_column"
+            referencedColumns: ["id", "project_id"]
+          },
           {
             foreignKeyName: "task_assignee_agent_id_fkey"
             columns: ["assignee_agent_id"]
@@ -569,6 +623,17 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      column_for_status: {
+        Args: {
+          p_project_id: string
+          p_status: Database["public"]["Enums"]["task_status"]
+        }
+        Returns: string
+      }
+      delete_board_column: {
+        Args: { p_column_id: string; p_move_to: string }
+        Returns: undefined
+      }
       hit_rate_limit: {
         Args: never
         Returns: {
@@ -583,6 +648,7 @@ export type Database = {
     }
     Enums: {
       actor_type: "human" | "ai" | "system"
+      board_column_kind: "backlog" | "todo" | "in_progress" | "done" | "custom"
       epic_status: "planned" | "in_progress" | "done" | "canceled"
       task_priority: "none" | "low" | "medium" | "high" | "urgent"
       task_status: "backlog" | "todo" | "in_progress" | "done"
@@ -715,6 +781,7 @@ export const Constants = {
   public: {
     Enums: {
       actor_type: ["human", "ai", "system"],
+      board_column_kind: ["backlog", "todo", "in_progress", "done", "custom"],
       epic_status: ["planned", "in_progress", "done", "canceled"],
       task_priority: ["none", "low", "medium", "high", "urgent"],
       task_status: ["backlog", "todo", "in_progress", "done"],

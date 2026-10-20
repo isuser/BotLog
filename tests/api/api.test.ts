@@ -9,11 +9,13 @@ import * as agentKeys from "@/app/api/v1/agents/[id]/api-keys/route";
 import * as agentRestore from "@/app/api/v1/agents/[id]/restore/route";
 import * as agentRoute from "@/app/api/v1/agents/[id]/route";
 import * as agents from "@/app/api/v1/agents/route";
+import * as columnRoute from "@/app/api/v1/columns/[id]/route";
 import * as epicRestore from "@/app/api/v1/epics/[id]/restore/route";
 import * as epicRoute from "@/app/api/v1/epics/[id]/route";
 import * as labelRoute from "@/app/api/v1/labels/[id]/route";
 import * as me from "@/app/api/v1/me/route";
 import * as meTasks from "@/app/api/v1/me/tasks/route";
+import * as projectColumns from "@/app/api/v1/projects/[id]/columns/route";
 import * as projectEpics from "@/app/api/v1/projects/[id]/epics/route";
 import * as projectLabels from "@/app/api/v1/projects/[id]/labels/route";
 import * as projectExport from "@/app/api/v1/projects/[id]/export/route";
@@ -254,6 +256,111 @@ describe("tasks", () => {
   test("filters validate their input", async () => {
     const res = await call(projectTasks.GET, { path: `/api/v1/projects/${PROJECT}/tasks?status=nope`, params: { id: PROJECT }, token: alice.token });
     expect(res.status).toBe(400);
+  });
+});
+
+describe("board columns", () => {
+  const KEY = "COL";
+  type Column = { id: string; kind: string; name: string; counts_as: string; hidden: boolean; task_count: number };
+
+  const listColumns = async (token = alice.token) => {
+    const res = await call(projectColumns.GET, { params: { id: KEY }, token });
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    return res.body.data as Column[];
+  };
+  const addColumn = (body: Record<string, unknown>, token = alice.token) =>
+    call(projectColumns.POST, { method: "POST", params: { id: KEY }, token, body });
+  const editColumn = (id: string, body: Record<string, unknown>) =>
+    call(columnRoute.PATCH, { method: "PATCH", params: { id }, token: alice.token, body });
+  const move = (task: { id: string; version: number }, body: Record<string, unknown>) =>
+    call(taskMove.POST, { method: "POST", params: { id: task.id }, token: alice.token, body: { ...body, version: task.version } });
+
+  beforeAll(async () => {
+    const res = await call(projects.POST, { method: "POST", token: alice.token, body: { name: "Columns", key: KEY } });
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+  });
+
+  test("projects start with the four built-ins; custom columns go before Done by default", async () => {
+    expect((await listColumns()).map((c) => [c.kind, c.name])).toEqual([
+      ["backlog", "Backlog"], ["todo", "To do"], ["in_progress", "In progress"], ["done", "Done"],
+    ]);
+    const review = await addColumn({ name: "In review" });
+    expect(review.status, JSON.stringify(review.body)).toBe(201);
+    expect(review.body.data).toMatchObject({ kind: "custom", counts_as: "in_progress", hidden: false, task_count: 0 });
+    const [todo] = (await listColumns()).filter((c) => c.kind === "todo");
+    const ready = await addColumn({ name: "Ready", counts_as: "todo", before_id: todo.id });
+    expect(ready.status).toBe(201);
+    expect((await listColumns()).map((c) => c.name)).toEqual(["Backlog", "Ready", "To do", "In progress", "In review", "Done"]);
+
+    expect((await addColumn({ name: "in REVIEW" })).status).toBe(409);
+    expect((await addColumn({ name: "Shipped", counts_as: "done" })).status).toBe(400);
+    const done = (await listColumns()).find((c) => c.kind === "done")!;
+    expect((await addColumn({ name: "After done", after_id: done.id })).body.error.message).toMatch(/between Backlog and Done/);
+  });
+
+  test("tasks move by column or by status; the status follows the column", async () => {
+    const columns = await listColumns();
+    const review = columns.find((c) => c.name === "In review")!;
+    const created = await call(projectTasks.POST, { method: "POST", params: { id: KEY }, token: alice.token, body: { title: "Reviewed", column_id: review.id } });
+    expect(created.status, JSON.stringify(created.body)).toBe(201);
+    expect(created.body.data).toMatchObject({ status: "in_progress", column_id: review.id, column: { id: review.id, name: "In review" } });
+
+    // A status it already has leaves it in its custom column; another status moves it.
+    const same = await move(created.body.data, { status: "in_progress" });
+    expect(same.body.data.column_id).toBe(review.id);
+    const done = await move(same.body.data, { status: "done" });
+    expect(done.body.data).toMatchObject({ status: "done", column: { name: "Done" }, done_at: expect.any(String) });
+    const back = await move(done.body.data, { column_id: review.id });
+    expect(back.body.data).toMatchObject({ status: "in_progress", done_at: null });
+
+    expect((await move(back.body.data, { status: "todo", column_id: review.id })).status).toBe(400);
+    const listed = await call(projectTasks.GET, { path: `/api/v1/projects/${KEY}/tasks?column_id=${review.id}`, params: { id: KEY }, token: alice.token });
+    expect(listed.body.data.map((t: Task) => t.title)).toEqual(["Reviewed"]);
+    expect((await listColumns()).find((c) => c.id === review.id)!.task_count).toBe(1);
+
+    const activity = await call(taskActivity.GET, { params: { id: back.body.data.id }, token: alice.token });
+    expect(activity.body.data[0]).toMatchObject({ action: "moved", changes: { column_id: { to: review.id } } });
+  });
+
+  test("columns can be renamed, reordered, hidden when empty, and deleted (their tasks moving)", async () => {
+    let columns = await listColumns();
+    const ready = columns.find((c) => c.name === "Ready")!;
+    const todo = columns.find((c) => c.kind === "todo")!;
+    const review = columns.find((c) => c.name === "In review")!;
+
+    expect((await editColumn(ready.id, { name: "Up next", after_id: todo.id })).status).toBe(200);
+    expect((await editColumn(todo.id, { name: "Renamed" })).body.error.message).toMatch(/keep their name/);
+    expect((await editColumn(review.id, { hidden: true })).status).toBe(400);
+    expect((await editColumn(todo.id, { hidden: true })).body.data.hidden).toBe(true);
+    columns = await listColumns();
+    expect(columns.map((c) => c.name)).toEqual(["Backlog", "To do", "Up next", "In progress", "In review", "Done"]);
+
+    // A hidden column takes no tasks by id; by status, they go to the first visible column counting as it.
+    const task = await createTask({ title: "Hidden todo" }, alice.token, KEY);
+    expect((await move(task, { column_id: todo.id })).body.error.message).toMatch(/hidden/);
+    const toTodo = await move(task, { status: "todo" });
+    expect(toTodo.body.data.column.name).toBe("Up next");
+
+    const toHidden = await call(columnRoute.DELETE, { method: "DELETE", path: `/api/v1/columns/${review.id}?move_to=${todo.id}`, params: { id: review.id }, token: alice.token });
+    expect(toHidden.body.error.message).toMatch(/hidden/);
+    const builtin = await call(columnRoute.DELETE, { method: "DELETE", params: { id: todo.id }, token: alice.token });
+    expect(builtin.status).toBe(400);
+    const deleted = await call(columnRoute.DELETE, { method: "DELETE", params: { id: review.id }, token: alice.token });
+    expect(deleted.status, JSON.stringify(deleted.body)).toBe(200);
+    const moved = await call(projectTasks.GET, { path: `/api/v1/projects/${KEY}/tasks?q=Reviewed`, params: { id: KEY }, token: alice.token });
+    expect(moved.body.data[0].column.name).toBe("In progress");
+
+    const upNext = columns.find((c) => c.name === "Up next")!;
+    const done = columns.find((c) => c.kind === "done")!;
+    const intoDone = await call(columnRoute.DELETE, { method: "DELETE", path: `/api/v1/columns/${upNext.id}?move_to=${done.id}`, params: { id: upNext.id }, token: alice.token });
+    expect(intoDone.status, JSON.stringify(intoDone.body)).toBe(200);
+    expect((await call(taskRoute.GET, { params: { id: task.id }, token: alice.token })).body.data.status).toBe("done");
+  });
+
+  test("other workspaces can't see or change a project's columns", async () => {
+    const [, todo] = await listColumns();
+    expect((await call(projectColumns.GET, { params: { id: KEY }, token: bob.token })).status).toBe(404);
+    expect((await call(columnRoute.PATCH, { method: "PATCH", params: { id: todo.id }, token: bob.token, body: { hidden: false } })).status).toBe(404);
   });
 });
 
@@ -521,6 +628,20 @@ describe.skipIf(!keyLive)("agents with API keys", () => {
     const [latest] = activity.body.data;
     expect(latest).toMatchObject({ action: "moved", actor: { type: "ai", agent_id: agentId, user_id: alice.id, name: "Test bot" } });
     expect(latest.actor.api_key_id).toEqual(expect.any(String));
+  });
+
+  test("can list columns and move tasks between them, but not manage columns", async () => {
+    const listed = await call(projectColumns.GET, { params: { id: PROJECT }, token: apiKey });
+    expect(listed.status, JSON.stringify(listed.body)).toBe(200);
+    const inProgress = listed.body.data.find((c: { kind: string }) => c.kind === "in_progress");
+    const task = await createTask({ title: "Bot moves by column" });
+    const moved = await call(taskMove.POST, { method: "POST", params: { id: task.id }, token: apiKey, body: { column_id: inProgress.id, version: task.version } });
+    expect(moved.body.data.status).toBe("in_progress");
+
+    const add = await call(projectColumns.POST, { method: "POST", params: { id: PROJECT }, token: apiKey, body: { name: "Bot column" } });
+    expect(add.status).toBe(403);
+    const edit = await call(columnRoute.PATCH, { method: "PATCH", params: { id: inProgress.id }, token: apiKey, body: { hidden: true } });
+    expect(edit.status).toBe(403);
   });
 
   test("can't read or change their owner's profile", async () => {

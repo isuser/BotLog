@@ -4,12 +4,11 @@ import type { Db } from "./auth";
 import { ApiError, fromPostgrest, notFound } from "./errors";
 import { parseTaskRef, shortId } from "./ids";
 
-type TaskStatus = Database["public"]["Enums"]["task_status"];
-
 export const TASK_SELECT = `
-  id, project_id, number, epic_id, title, description, type, status, position, priority,
+  id, project_id, number, epic_id, title, description, type, status, column_id, position, priority,
   assignee_user_id, assignee_agent_id, due_date, version, done_at, archived_at, created_at, updated_at,
   project:project!inner(key),
+  column:board_column!task_column_fkey(id, name),
   assignee_user:profile!task_assignee_user_id_fkey(id, name, email),
   assignee_agent:agent!task_assignee_agent_id_fkey(id, name, avatar),
   epic:epic(id, title, status),
@@ -18,6 +17,7 @@ export const TASK_SELECT = `
 
 export type TaskRow = Database["public"]["Tables"]["task"]["Row"] & {
   project: { key: string };
+  column: { id: string; name: string };
   assignee_user: { id: string; name: string; email: string } | null;
   assignee_agent: { id: string; name: string; avatar: string | null } | null;
   epic: { id: string; title: string; status: Database["public"]["Enums"]["epic_status"] } | null;
@@ -36,6 +36,9 @@ export function serializeTask(row: TaskRow) {
     description: row.description,
     type: row.type,
     status: row.status,
+    /** The board column it's in; its status is what that column counts as. */
+    column_id: row.column_id,
+    column: row.column,
     position: row.position,
     priority: row.priority,
     epic_id: row.epic_id,
@@ -83,19 +86,19 @@ export function assigneeColumns(assignee: { type: "user" | "agent"; id: string }
 }
 
 /**
- * The fractional position for a task placed in `status` between the task directly above
- * (`afterRef`) and the one directly below (`beforeRef`). Without either, it goes to the
- * top of the column. `excludeId` is the task being moved, so it isn't its own neighbor.
+ * The fractional position for a task placed in column `columnId` between the task directly
+ * above (`afterRef`) and the one directly below (`beforeRef`). Without either, it goes to
+ * the top of the column. `excludeId` is the task being moved, so it isn't its own neighbor.
  */
 export async function positionFor(
   db: Db,
   projectId: string,
-  status: TaskStatus,
+  columnId: string,
   { afterRef, beforeRef, excludeId }: { afterRef?: string; beforeRef?: string; excludeId?: string } = {},
 ): Promise<string> {
   const neighbor = async (ref: string, label: string) => {
     const task = await getTaskRow(db, ref);
-    if (task.project_id !== projectId || task.status !== status || task.archived_at || task.id === excludeId) {
+    if (task.project_id !== projectId || task.column_id !== columnId || task.archived_at || task.id === excludeId) {
       throw new ApiError("bad_request", `${label} must be another active task in the target column.`);
     }
     return task.position;
@@ -105,8 +108,7 @@ export async function positionFor(
     let query = db
       .from("task")
       .select("position")
-      .eq("project_id", projectId)
-      .eq("status", status)
+      .eq("column_id", columnId)
       .is("archived_at", null);
     if (excludeId) query = query.neq("id", excludeId);
     if (from !== null) query = direction === "below" ? query.gt("position", from) : query.lt("position", from);

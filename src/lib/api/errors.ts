@@ -91,6 +91,9 @@ function alreadyExistsMessage(error: PostgrestError): string {
   if (error.message.includes("label_project_name_idx")) {
     return "A label with this name already exists in this project.";
   }
+  if (error.message.includes("board_column_name_idx")) {
+    return "A column with this name already exists in this project.";
+  }
   return "This already exists.";
 }
 
