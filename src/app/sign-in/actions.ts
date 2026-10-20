@@ -1,7 +1,9 @@
 "use server";
 
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { isEmailAllowed } from "@/lib/auth/allowlist";
+import { googleSignInEnabled } from "@/lib/auth/google";
 import { safeRedirectPath } from "@/lib/auth/redirect";
 import { createClient } from "@/lib/supabase/server";
 
@@ -26,4 +28,26 @@ export async function signIn(_prev: SignInState, formData: FormData): Promise<Si
   }
 
   redirect(safeRedirectPath(formData.get("next")));
+}
+
+/** Starts "Continue with Google": Supabase sends the browser to Google, then to /auth/callback. */
+export async function signInWithGoogle() {
+  if (!googleSignInEnabled()) redirect("/sign-in");
+
+  // Server Actions only run for same-origin requests, so Origin is this site's address.
+  const origin = (await headers()).get("origin");
+  if (!origin) redirect("/sign-in?error=oauth");
+  // No ?next: the URL must match Supabase's Redirect URLs exactly, so Google sign-in lands on /.
+  const callback = new URL("/auth/callback", origin);
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: { redirectTo: callback.toString() },
+  });
+  if (error || !data.url) {
+    console.error("Starting Google sign-in failed", error?.status, error?.code);
+    redirect("/sign-in?error=oauth");
+  }
+  redirect(data.url);
 }
