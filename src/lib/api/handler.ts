@@ -14,6 +14,10 @@ type Handler<P extends Params> = (
 /**
  * Wraps a Route Handler: authenticates the caller, counts the request against their rate
  * limit, and turns thrown errors into the standard `{ error: { code, message } }` response.
+ *
+ * Reads count in parallel with the handler, saving a database round trip; if the limit is
+ * used up, the result is thrown away and the answer is still 429. Writes count first, so a
+ * write over the limit never runs.
  */
 export function route<P extends Params = Params>(
   handler: Handler<P>,
@@ -22,8 +26,15 @@ export function route<P extends Params = Params>(
   return async (request: NextRequest, context: { params: Promise<P> }) => {
     try {
       const api = await authenticate(request, options);
-      await enforceRateLimit(api.db, api.actor);
-      return await handler({ ...api, request, params: await context.params, url: request.nextUrl });
+      const run = async () => handler({ ...api, request, params: await context.params, url: request.nextUrl });
+      if (!isRead(request.method)) {
+        await enforceRateLimit(api.db, api.actor);
+        return await run();
+      }
+      const [limit, response] = await Promise.allSettled([enforceRateLimit(api.db, api.actor), run()]);
+      if (limit.status === "rejected") throw limit.reason;
+      if (response.status === "rejected") throw response.reason;
+      return response.value;
     } catch (error) {
       // Let Next.js handle its own control-flow errors (e.g. opting out of prerendering).
       unstable_rethrow(error);
@@ -31,6 +42,8 @@ export function route<P extends Params = Params>(
     }
   };
 }
+
+const isRead = (method: string) => method === "GET" || method === "HEAD";
 
 export function json(data: unknown, status = 200): Response {
   return Response.json(data, { status, headers: { "cache-control": "no-store" } });
