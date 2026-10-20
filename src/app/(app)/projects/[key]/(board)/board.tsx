@@ -23,16 +23,17 @@ import { api, apiAll, ApiRequestError, isConflict } from "@/lib/client/api";
 import {
   BOARD_COLUMNS,
   flatten,
-  groupByStatus,
+  groupByColumn,
   inDoneWindow,
   moveToColumn,
   placement,
   reorderInColumn,
   replaceTask,
   samePlacement,
+  visibleColumns,
   type Columns,
 } from "@/lib/client/board";
-import type { Project, Task, TaskStatus } from "@/lib/client/types";
+import type { BoardColumn as Column, Project, Task } from "@/lib/client/types";
 import { BoardColumn } from "./board-column";
 import { TaskCard } from "./task-card";
 
@@ -44,6 +45,12 @@ export function Board({ projectKey }: { projectKey: string }) {
   // agents or other tabs show up when you come back.
   const tasksKey = `/projects/${projectKey}/tasks`;
   const { data: tasks, error: tasksError, mutate } = useSWR(tasksKey, (path: string) => apiAll<Task>(path));
+  // Every column, hidden ones and the Backlog included, so each task has a place.
+  const { data: projectColumns, error: columnsError } = useSWR(`/projects/${projectKey}/columns`, (path: string) =>
+    apiAll<Column>(path),
+  );
+  const columnIds = useMemo(() => (projectColumns ?? []).map((c) => c.id), [projectColumns]);
+  const statusOf = (columnId: string) => projectColumns?.find((c) => c.id === columnId)?.counts_as;
 
   // While dragging, the board shows this local copy instead of the fetched tasks.
   const [dragColumns, setDragColumns] = useState<Columns | null>(null);
@@ -52,12 +59,18 @@ export function Board({ projectKey }: { projectKey: string }) {
 
   // Columns hold every active task, backlog and older Done ones included, so moves keep their
   // places; the board just doesn't show those.
-  const columns = useMemo(() => dragColumns ?? groupByStatus(tasks ?? []), [dragColumns, tasks]);
+  const columns = useMemo(
+    () => dragColumns ?? groupByColumn(tasks ?? [], columnIds),
+    [dragColumns, tasks, columnIds],
+  );
+  const shown = visibleColumns(projectColumns ?? [], columns);
   // When the board opened; good enough for a window counted in days.
   const [now] = useState(() => Date.now());
   const doneWindow = project?.done_window_days ?? 14;
-  const recentDone = columns.done.filter((t) => inDoneWindow(t, doneWindow, now));
-  const olderDone = columns.done.length - recentDone.length;
+  const doneColumn = projectColumns?.find((c) => c.kind === "done");
+  const allDone = doneColumn ? (columns[doneColumn.id] ?? []) : [];
+  const recentDone = allDone.filter((t) => inDoneWindow(t, doneWindow, now));
+  const olderDone = allDone.length - recentDone.length;
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
@@ -76,7 +89,7 @@ export function Board({ projectKey }: { projectKey: string }) {
   };
 
   function onDragStart({ active }: DragStartEvent) {
-    const start = groupByStatus(tasks ?? []);
+    const start = groupByColumn(tasks ?? [], columnIds);
     dragRef.current = { start, current: start };
     setDragColumns(start);
     setActiveTask(tasks?.find((t) => t.id === active.id) ?? null);
@@ -84,7 +97,7 @@ export function Board({ projectKey }: { projectKey: string }) {
 
   function onDragOver({ active, over }: DragOverEvent) {
     if (!over || !dragRef.current) return;
-    updateDrag(moveToColumn(dragRef.current.current, String(active.id), String(over.id)));
+    updateDrag(moveToColumn(dragRef.current.current, String(active.id), String(over.id), statusOf));
   }
 
   function endDrag() {
@@ -123,16 +136,16 @@ export function Board({ projectKey }: { projectKey: string }) {
     }
   }
 
-  async function addTask(status: TaskStatus, title: string) {
+  async function addTask(columnId: string, title: string) {
     try {
       const { data } = await api<{ data: Task }>(`/projects/${projectKey}/tasks`, {
         method: "POST",
-        json: { title, status },
+        json: { title, column_id: columnId },
       });
       await mutate(
         (current) => {
-          const grouped = groupByStatus(current ?? []);
-          return flatten({ ...grouped, [status]: [data, ...grouped[status]] });
+          const grouped = groupByColumn(current ?? [], columnIds);
+          return flatten({ ...grouped, [columnId]: [data, ...(grouped[columnId] ?? [])] });
         },
         { revalidate: false },
       );
@@ -142,12 +155,14 @@ export function Board({ projectKey }: { projectKey: string }) {
     }
   }
 
-  if (projectError || tasksError) {
+  if (projectError || tasksError || columnsError) {
     const notFound = projectError instanceof ApiRequestError && projectError.status === 404;
     return (
       <main className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
         <p className="font-medium">{notFound ? "Project not found" : "Couldn't load this board"}</p>
-        {!notFound && <p className="text-muted-foreground text-sm">{(projectError ?? tasksError).message}</p>}
+        {!notFound && (
+          <p className="text-muted-foreground text-sm">{(projectError ?? tasksError ?? columnsError).message}</p>
+        )}
         <Link href="/" className="text-sm underline">
           Back to projects
         </Link>
@@ -157,7 +172,7 @@ export function Board({ projectKey }: { projectKey: string }) {
 
   return (
     <main className="flex min-h-0 flex-1 flex-col pb-4">
-      {!tasks ? (
+      {!tasks || !projectColumns ? (
         <BoardSkeleton />
       ) : (
         <DndContext
@@ -172,15 +187,16 @@ export function Board({ projectKey }: { projectKey: string }) {
           <div className="flex flex-1 snap-x snap-mandatory scroll-px-4 overflow-x-auto px-4 sm:snap-none">
             {/* Centred while the columns fit; scrolls from the left edge when they don't. */}
             <div className="mx-auto flex w-max gap-4">
-              {BOARD_COLUMNS.map(({ status, title }) => (
+              {shown.map((column) => (
                 <BoardColumn
-                  key={status}
-                  status={status}
-                  title={title}
-                  tasks={status === "done" ? recentDone : columns[status]}
+                  key={column.id}
+                  column={column}
+                  tasks={column.kind === "done" ? recentDone : (columns[column.id] ?? [])}
                   onAdd={addTask}
+                  // The `c` shortcut focuses the first column's quick add.
+                  focusOnShortcut={column.id === shown[0]?.id}
                   footer={
-                    status === "done" && olderDone > 0 ? (
+                    column.kind === "done" && olderDone > 0 ? (
                       <p className="text-muted-foreground px-1 text-xs">
                         {olderDone} {olderDone === 1 ? "task" : "tasks"} done over {doneWindow} days ago.{" "}
                         <Link href={`/projects/${projectKey}/list`} className="underline">

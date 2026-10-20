@@ -9,8 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { apiAll } from "@/lib/client/api";
-import { PRIORITY_BADGE, PRIORITY_LABELS, STATUS_COLORS, STATUS_LABELS, TYPE_BADGE, TYPE_LABELS } from "@/lib/client/task-labels";
-import type { Agent, Epic, Task, TaskStatus } from "@/lib/client/types";
+import { PRIORITY_BADGE, PRIORITY_LABELS, STATUS_COLORS, TYPE_BADGE, TYPE_LABELS } from "@/lib/client/task-labels";
+import type { Agent, BoardColumn, Epic, Task, TaskStatus } from "@/lib/client/types";
 import { cn } from "@/lib/utils";
 import { LabelPicker } from "./label-picker";
 
@@ -72,12 +72,12 @@ export function TaskTitle({
 /** Every field's control: a filled box, so each value reads as a field beside its label. */
 const CONTROL = "bg-muted hover:bg-accent h-8 w-full max-w-56 border-transparent shadow-none transition-colors";
 
-/** Status as a dot in its column colour, priority and type as the board's badges. */
-function StatusValue({ status }: { status: TaskStatus }) {
+/** A column as a dot in its status colour; priority and type as the board's badges. */
+function ColumnValue({ name, status }: { name: string; status: TaskStatus }) {
   return (
-    <span className="flex items-center gap-2">
-      <span className={cn("size-2 rounded-full", STATUS_COLORS[status].dot)} />
-      {STATUS_LABELS[status]}
+    <span className="flex min-w-0 items-center gap-2">
+      <span className={cn("size-2 shrink-0 rounded-full", STATUS_COLORS[status].dot)} />
+      <span className="truncate">{name}</span>
     </span>
   );
 }
@@ -108,9 +108,19 @@ export function TaskFields({
   currentUser: CurrentUser;
   disabled: boolean;
   onChange: (change: FieldChange) => Promise<boolean>;
-  onMove: (status: TaskStatus) => Promise<boolean>;
+  onMove: (column: Pick<BoardColumn, "id" | "name" | "counts_as">) => Promise<boolean>;
 }) {
   const { data: agents } = useSWR("/agents", (path: string) => apiAll<Agent>(path));
+  const { data: columns } = useSWR(`/projects/${task.project_key}/columns`, (path: string) =>
+    apiAll<BoardColumn>(path),
+  );
+
+  // The project's visible columns (Backlog included), plus the task's own if it's hidden.
+  const columnOptions = new Map<string, Pick<BoardColumn, "id" | "name" | "counts_as">>(
+    (columns ?? []).filter((c) => !c.hidden || c.id === task.column_id).map((c) => [c.id, c]),
+  );
+  if (!columnOptions.has(task.column_id)) columnOptions.set(task.column_id, { ...task.column, counts_as: task.status });
+  const columnNames = Object.fromEntries([...columnOptions].map(([id, c]) => [id, c.name]));
 
   // Unassigned, you, the workspace's active agents, and whoever the task is assigned to now
   // (which may be an archived agent).
@@ -129,14 +139,20 @@ export function TaskFields({
 
   return (
     <dl className="grid grid-cols-[7rem_minmax(0,1fr)] items-center gap-x-3 gap-y-1.5 text-sm">
-      <Field label="Status" icon={CircleDotIcon}>
+      <Field label="Column" icon={CircleDotIcon}>
         <FieldSelect
-          label="Status"
-          value={task.status}
-          items={STATUS_LABELS}
-          render={(status) => <StatusValue status={status} />}
+          label="Column"
+          value={task.column_id}
+          items={columnNames}
+          render={(id) => {
+            const column = columnOptions.get(id);
+            return column ? <ColumnValue name={column.name} status={column.counts_as} /> : null;
+          }}
           disabled={disabled}
-          onChange={(status) => void onMove(status)}
+          onChange={(id) => {
+            const column = columnOptions.get(id);
+            if (column) void onMove(column);
+          }}
         />
       </Field>
       <Field label="Priority" icon={SignalIcon}>

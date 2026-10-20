@@ -33,6 +33,15 @@ describe("describeActivity", () => {
     expect(describeActivity(moved, names)).toBe("moved it from To do to In progress");
   });
 
+  test("describes a move by column names when it knows them", () => {
+    const columns: NameLookup = (type, id) => (type === "column" ? { c1: "In progress", c2: "In review" }[id] : undefined);
+    expect(describeActivity(entry("moved", { column_id: change("c1", "c2") }), columns)).toBe(
+      "moved it from In progress to In review",
+    );
+    // A deleted column has no name any more.
+    expect(describeActivity(entry("moved", { column_id: change("gone", "c2") }), columns)).toBe("moved it to In review");
+  });
+
   test("describes a move between columns with the same status", () => {
     const moved = entry("moved", { column_id: change("c1", "c2"), position: change("a", "b") });
     expect(describeActivity(moved, names)).toBe("moved it to another column");

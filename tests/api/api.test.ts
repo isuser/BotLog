@@ -650,8 +650,11 @@ describe.skipIf(!keyLive)("agents with API keys", () => {
   });
 
   test("see only their owner's workspace", async () => {
+    // The owner's projects (the columns tests add COL), and no one else's.
     const res = await call(projects.GET, { token: apiKey });
-    expect(res.body.data.map((p: { key: string }) => p.key)).toEqual([PROJECT]);
+    const owners = await call(projects.GET, { token: alice.token });
+    expect(res.body.data.map((p: { key: string }) => p.key)).toEqual(owners.body.data.map((p: { key: string }) => p.key));
+    expect(res.body.data.map((p: { key: string }) => p.key)).toContain(PROJECT);
   });
 
   test("revoked keys stop working", async () => {

@@ -14,7 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { api, apiAll, errorMessage } from "@/lib/client/api";
 import { taskHref } from "@/lib/client/board";
 import { formatDate, fullDate, timeAgo } from "@/lib/client/format";
-import { PRIORITY_BADGE, STATUS_COLORS, STATUS_LABELS, TYPE_BADGE } from "@/lib/client/task-labels";
+import { PRIORITY_BADGE, STATUS_COLORS, TYPE_BADGE } from "@/lib/client/task-labels";
 import { DEFAULT_SORT, nextSort, parseSort, sortTasks, type Sort, type SortKey } from "@/lib/client/task-sort";
 import type { Task } from "@/lib/client/types";
 import { cn } from "@/lib/utils";
@@ -26,7 +26,7 @@ const SORT_STORAGE_KEY = "botlog-list-sort";
 const COLUMNS_SPEC: { key: SortKey; label: string; className?: string }[] = [
   { key: "number", label: "ID", className: "w-20" },
   { key: "title", label: "Title", className: "min-w-64" },
-  { key: "status", label: "Status", className: "w-32" },
+  { key: "status", label: "Column", className: "w-36" },
   { key: "priority", label: "Priority", className: "w-24" },
   { key: "type", label: "Type", className: "w-28" },
   { key: "assignee", label: "Assignee", className: "w-40" },
@@ -170,8 +170,8 @@ function TaskRow({ task, selected, overdue }: { task: Task; selected: boolean; o
       </td>
       <td className="px-3 py-2 whitespace-nowrap">
         <span className="flex items-center gap-2">
-          <span className={cn("size-2 rounded-full", STATUS_COLORS[task.status].dot)} />
-          {STATUS_LABELS[task.status]}
+          <span className={cn("size-2 shrink-0 rounded-full", STATUS_COLORS[task.status].dot)} />
+          {task.column.name}
         </span>
       </td>
       <td className="px-3 py-2">{priority ? <Badge variant={priority.variant}>{priority.label}</Badge> : <Dash />}</td>

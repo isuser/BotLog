@@ -4,25 +4,28 @@ import { useDroppable } from "@dnd-kit/core";
 import type { ReactNode } from "react";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { STATUS_COLORS } from "@/lib/client/task-labels";
-import type { Task, TaskStatus } from "@/lib/client/types";
+import type { BoardColumn as Column, Task } from "@/lib/client/types";
 import { cn } from "@/lib/utils";
 import { QuickAdd } from "./quick-add";
 import { SortableTaskCard } from "./task-card";
 
 export function BoardColumn({
-  status,
-  title,
+  column,
   tasks,
   onAdd,
+  focusOnShortcut,
   footer,
 }: {
-  status: TaskStatus;
-  title: string;
+  column: Pick<Column, "id" | "name" | "counts_as" | "hidden">;
   tasks: Task[];
-  onAdd: (status: TaskStatus, title: string) => Promise<void>;
+  onAdd: (columnId: string, title: string) => Promise<void>;
+  focusOnShortcut: boolean;
   footer?: ReactNode;
 }) {
-  const { setNodeRef, isOver } = useDroppable({ id: status });
+  const { setNodeRef, isOver } = useDroppable({ id: column.id });
+  // Custom columns take the colour of the status they count as.
+  const status = column.counts_as;
+  const title = column.name;
 
   return (
     <section
@@ -40,15 +43,16 @@ export function BoardColumn({
           )}
         >
           {title}
+          {column.hidden && <span className="text-muted-foreground ml-2 font-sans text-xs font-normal normal-case tracking-normal">(hidden)</span>}
         </h2>
         <span className="bg-background text-muted-foreground rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums">
           {tasks.length}
         </span>
       </header>
 
-      <QuickAdd columnTitle={title} onAdd={(t) => onAdd(status, t)} focusOnShortcut={status === "todo"} />
+      {!column.hidden && <QuickAdd columnTitle={title} onAdd={(t) => onAdd(column.id, t)} focusOnShortcut={focusOnShortcut} />}
 
-      <SortableContext id={status} items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+      <SortableContext id={column.id} items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
         <ul
           ref={setNodeRef}
           className={cn(

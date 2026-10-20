@@ -1,6 +1,15 @@
 "use client";
 
-import { ArchiveRestoreIcon, DownloadIcon, PlusIcon, Trash2Icon } from "lucide-react";
+import {
+  ArchiveRestoreIcon,
+  ArrowDownIcon,
+  ArrowUpIcon,
+  DownloadIcon,
+  EyeIcon,
+  EyeOffIcon,
+  PlusIcon,
+  Trash2Icon,
+} from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -18,16 +27,20 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label as FieldLabel } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { api, apiAll, errorMessage } from "@/lib/client/api";
 import { taskHref } from "@/lib/client/board";
 import { fullDate, timeAgo } from "@/lib/client/format";
-import { LABEL_COLORS } from "@/lib/client/task-labels";
-import type { Epic, Label, Project, Task } from "@/lib/client/types";
+import { LABEL_COLORS, STATUS_COLORS, STATUS_LABELS } from "@/lib/client/task-labels";
+import type { BoardColumn, Epic, Label, Project, Task } from "@/lib/client/types";
 import { cn } from "@/lib/utils";
 
-/** A project's settings: its name and description, the board's Done window, its labels, and its archived tasks and epics. */
+/**
+ * A project's settings: its name and description, the board's Done window and columns, its
+ * labels, and its archived tasks and epics.
+ */
 export function ProjectSettingsView({ projectKey }: { projectKey: string }) {
   const { data: project } = useSWR(`/projects/${projectKey}`, (path: string) =>
     api<{ data: Project }>(path).then((r) => r.data),
@@ -38,12 +51,13 @@ export function ProjectSettingsView({ projectKey }: { projectKey: string }) {
       <div className="flex max-w-3xl flex-col gap-10">
         {project ? <GeneralSection key={project.updated_at} project={project} /> : <Skeleton className="h-40 w-full" />}
         {project && <BoardSection key={project.updated_at} project={project} />}
+        <ColumnsSection projectKey={projectKey} />
         <LabelsSection projectKey={projectKey} />
         <ArchivedSection projectKey={projectKey} />
         <Section
           id="settings-export"
           title="Export"
-          description="Download the whole project as JSON: epics, labels, tasks (archived ones too) and comments."
+          description="Download the whole project as JSON: columns, epics, labels, tasks (archived ones too) and comments."
         >
           {/* A real link: it's a file download, styled as a button. */}
           <a href={`/api/v1/projects/${projectKey}/export`} download className={cn(buttonVariants({ variant: "outline" }), "self-start")}>
@@ -176,6 +190,276 @@ function BoardSection({ project }: { project: Project }) {
         </Button>
       </form>
     </Section>
+  );
+}
+
+/** What a custom column can count as. Backlog and Done are built-in only. */
+const COUNTS_AS = { todo: STATUS_LABELS.todo, in_progress: STATUS_LABELS.in_progress };
+type CountsAs = keyof typeof COUNTS_AS;
+
+/**
+ * The board's columns, left to right: add, rename, reorder and delete custom ones, choose
+ * what they count as, and hide or show To do and In progress.
+ */
+function ColumnsSection({ projectKey }: { projectKey: string }) {
+  const columnsKey = `/projects/${projectKey}/columns`;
+  const { mutate } = useSWRConfig();
+  const { data: columns, mutate: mutateColumns } = useSWR(columnsKey, (path: string) => apiAll<BoardColumn>(path));
+  const [newName, setNewName] = useState("");
+  const [newCountsAs, setNewCountsAs] = useState<CountsAs>("in_progress");
+  const [deleting, setDeleting] = useState<BoardColumn | null>(null);
+
+  /** Tasks show their column's name, so refresh them too after a change. */
+  const refresh = async () => {
+    await mutateColumns();
+    void mutate((key) => typeof key === "string" && (key.startsWith(`/projects/${projectKey}/tasks`) || key.startsWith("/tasks/")));
+  };
+
+  async function run(request: () => Promise<unknown>, done?: string) {
+    try {
+      await request();
+      await refresh();
+      if (done) toast(done);
+      return true;
+    } catch (e) {
+      toast.error(errorMessage(e));
+      return false;
+    }
+  }
+
+  async function create(event: React.FormEvent) {
+    event.preventDefault();
+    const name = newName.trim();
+    if (!name) return;
+    if (await run(() => api(columnsKey, { method: "POST", json: { name, counts_as: newCountsAs } }))) setNewName("");
+  }
+
+  const update = (column: BoardColumn, change: Record<string, unknown>) =>
+    run(() => api(`/columns/${column.id}`, { method: "PATCH", json: change }));
+
+  const remove = (column: BoardColumn, moveTo: string | null) =>
+    run(
+      () => api(`/columns/${column.id}${moveTo ? `?move_to=${moveTo}` : ""}`, { method: "DELETE" }),
+      `Column “${column.name}” deleted`,
+    ).then((ok) => ok && setDeleting(null));
+
+  return (
+    <Section
+      id="settings-columns"
+      title="Columns"
+      description="The board's columns, left to right. Backlog has its own tab and Done is always last. Each custom column counts as To do or In progress: that's the status agents, epic progress and My tasks see for its tasks."
+    >
+      <form onSubmit={create} className="flex max-w-lg flex-wrap gap-2">
+        <Input
+          aria-label="New column name"
+          placeholder="New column"
+          maxLength={50}
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+          inputContainerClassName="min-w-40 flex-1"
+        />
+        <CountsAsSelect label="New column counts as" value={newCountsAs} onChange={setNewCountsAs} />
+        <Button type="submit" variant="outline" disabled={!newName.trim()}>
+          <PlusIcon /> Add
+        </Button>
+      </form>
+      {!columns ? (
+        <Skeleton className="h-48 w-full" />
+      ) : (
+        <ul className="bg-card divide-y rounded-lg border">
+          {columns.map((column, index) => (
+            <ColumnRow
+              key={`${column.id}:${column.name}`}
+              column={column}
+              // Backlog and Done stay put, so nothing moves past them.
+              canMoveUp={index > 1}
+              canMoveDown={index < columns.length - 2}
+              onMoveUp={() => update(column, { before_id: columns[index - 1].id })}
+              onMoveDown={() => update(column, { after_id: columns[index + 1].id })}
+              onUpdate={(change) => update(column, change)}
+              onDelete={() => setDeleting(column)}
+            />
+          ))}
+        </ul>
+      )}
+
+      {deleting && columns && (
+        <DeleteColumnDialog column={deleting} columns={columns} onCancel={() => setDeleting(null)} onDelete={remove} />
+      )}
+    </Section>
+  );
+}
+
+function CountsAsSelect({ label, value, onChange }: { label: string; value: CountsAs; onChange: (value: CountsAs) => void }) {
+  return (
+    <Select value={value} items={COUNTS_AS} onValueChange={(next) => next && next !== value && onChange(next as CountsAs)}>
+      <SelectTrigger aria-label={label} className="h-9 w-36">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {(Object.keys(COUNTS_AS) as CountsAs[]).map((key) => (
+          <SelectItem key={key} value={key}>
+            {COUNTS_AS[key]}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+function ColumnRow({
+  column,
+  canMoveUp,
+  canMoveDown,
+  onMoveUp,
+  onMoveDown,
+  onUpdate,
+  onDelete,
+}: {
+  column: BoardColumn;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  onUpdate: (change: Record<string, unknown>) => Promise<boolean>;
+  onDelete: () => void;
+}) {
+  const [name, setName] = useState(column.name);
+  const custom = column.kind === "custom";
+  const hideable = column.kind === "todo" || column.kind === "in_progress";
+  // The database only hides an empty column.
+  const cantHide = !column.hidden && column.task_count > 0;
+
+  async function commitName() {
+    const trimmed = name.trim();
+    if (!trimmed || trimmed === column.name) return setName(column.name);
+    if (!(await onUpdate({ name: trimmed }))) setName(column.name);
+  }
+
+  return (
+    <li className={cn("flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2", column.hidden && "text-muted-foreground")}>
+      <span className={cn("size-2.5 shrink-0 rounded-full", STATUS_COLORS[column.counts_as].dot)} aria-hidden />
+      {custom ? (
+        <Input
+          aria-label={`Name of ${column.name}`}
+          value={name}
+          maxLength={50}
+          onChange={(e) => setName(e.target.value)}
+          onBlur={() => void commitName()}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") e.currentTarget.blur();
+            if (e.key === "Escape") setName(column.name);
+          }}
+          inputContainerClassName="max-w-56 min-w-32 flex-1"
+          className="hover:border-input h-8 border-transparent bg-transparent shadow-none"
+        />
+      ) : (
+        <span className="min-w-32 flex-1 px-3 text-sm">
+          {column.name}
+          <span className="text-muted-foreground ml-2 text-xs">
+            {column.kind === "backlog" ? "Own tab" : column.hidden ? "Hidden" : "Built-in"}
+          </span>
+        </span>
+      )}
+      {custom && (
+        <CountsAsSelect
+          label={`${column.name} counts as`}
+          value={column.counts_as as CountsAs}
+          onChange={(counts_as) => void onUpdate({ counts_as })}
+        />
+      )}
+      <span className="text-muted-foreground ml-auto shrink-0 text-xs tabular-nums">
+        {column.task_count} task{column.task_count === 1 ? "" : "s"}
+      </span>
+      <span className="flex shrink-0 items-center">
+        {/* Backlog and Done never move. */}
+        {column.kind !== "backlog" && column.kind !== "done" && (
+          <>
+            <Button variant="ghost" size="icon-sm" aria-label={`Move ${column.name} earlier`} disabled={!canMoveUp} onClick={onMoveUp}>
+              <ArrowUpIcon />
+            </Button>
+            <Button variant="ghost" size="icon-sm" aria-label={`Move ${column.name} later`} disabled={!canMoveDown} onClick={onMoveDown}>
+              <ArrowDownIcon />
+            </Button>
+          </>
+        )}
+        {hideable && (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={column.hidden ? `Show ${column.name}` : `Hide ${column.name}`}
+            title={cantHide ? "Move its tasks to another column to hide it" : undefined}
+            disabled={cantHide}
+            onClick={() => void onUpdate({ hidden: !column.hidden })}
+          >
+            {column.hidden ? <EyeIcon /> : <EyeOffIcon />}
+          </Button>
+        )}
+        {custom && (
+          <Button variant="ghost" size="icon-sm" aria-label={`Delete ${column.name}`} className="text-muted-foreground" onClick={onDelete}>
+            <Trash2Icon />
+          </Button>
+        )}
+      </span>
+    </li>
+  );
+}
+
+/** Confirms deleting a custom column, asking where its tasks go when it has any. */
+function DeleteColumnDialog({
+  column,
+  columns,
+  onCancel,
+  onDelete,
+}: {
+  column: BoardColumn;
+  columns: BoardColumn[];
+  onCancel: () => void;
+  onDelete: (column: BoardColumn, moveTo: string | null) => Promise<unknown>;
+}) {
+  const targets = columns.filter((c) => c.id !== column.id && !c.hidden);
+  // Like the API's default: the built-in column for its status, else another one counting as it.
+  const sameStatus = targets.filter((c) => c.counts_as === column.counts_as);
+  const [moveTo, setMoveTo] = useState(
+    (sameStatus.find((c) => c.kind !== "custom") ?? sameStatus[0] ?? targets[0])?.id ?? "",
+  );
+  const names = Object.fromEntries(targets.map((c) => [c.id, c.name]));
+  const count = column.task_count;
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onCancel()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Delete “{column.name}”?</DialogTitle>
+          <DialogDescription>
+            {count > 0
+              ? `Its ${count} task${count === 1 ? "" : "s"} (and any archived ones) move to the column you pick; each task's activity records it.`
+              : "It has no active tasks. Any archived ones move to the column below."}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-2">
+          <FieldLabel>Move tasks to</FieldLabel>
+          <Select value={moveTo} items={names} onValueChange={(next) => next && setMoveTo(String(next))}>
+            <SelectTrigger aria-label="Move tasks to" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {targets.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <DialogFooter>
+          <DialogClose render={<Button variant="outline">Cancel</Button>} />
+          <Button variant="destructive" disabled={!moveTo} onClick={() => void onDelete(column, moveTo)}>
+            Delete column
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

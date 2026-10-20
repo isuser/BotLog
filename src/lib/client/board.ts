@@ -1,4 +1,4 @@
-import type { Task, TaskStatus } from "./types";
+import type { BoardColumn, Task, TaskStatus } from "./types";
 
 export const COLUMNS: { status: TaskStatus; title: string }[] = [
   { status: "backlog", title: "Backlog" },
@@ -22,30 +22,53 @@ export function inDoneWindow(task: Pick<Task, "done_at">, windowDays: number, no
   return !task.done_at || now - Date.parse(task.done_at) < windowDays * DAY_MS;
 }
 
-export type Columns = Record<TaskStatus, Task[]>;
+/**
+ * Tasks grouped into columns, keyed by column id (or by status, for pages grouped by
+ * status). Keys are in board order.
+ */
+export type Columns = Record<string, Task[]>;
 
-const isStatus = (id: string): id is TaskStatus => (STATUSES as string[]).includes(id);
-
-/** Groups tasks into columns, keeping their order (the API returns board order). */
-export function groupByStatus(tasks: Task[]): Columns {
-  const columns = Object.fromEntries(STATUSES.map((s) => [s, [] as Task[]])) as Columns;
+/** Groups tasks by status, keeping their order (the API returns board order). */
+export function groupByStatus(tasks: Task[]): Record<TaskStatus, Task[]> {
+  const columns = Object.fromEntries(STATUSES.map((s) => [s, [] as Task[]])) as Record<TaskStatus, Task[]>;
   for (const task of tasks) columns[task.status].push(task);
   return columns;
 }
 
-export const flatten = (columns: Columns): Task[] => STATUSES.flatMap((s) => columns[s]);
+/** Groups tasks by column, in the order of `columnIds` (every column of the project). */
+export function groupByColumn(tasks: Task[], columnIds: string[]): Columns {
+  const columns: Columns = Object.fromEntries(columnIds.map((id) => [id, [] as Task[]]));
+  for (const task of tasks) (columns[task.column_id] ??= []).push(task);
+  return columns;
+}
+
+/**
+ * The columns the board shows, in order: everything but the Backlog (it has its own tab) and
+ * hidden columns, unless a hidden one still holds tasks (an agent moved one there by status).
+ */
+export function visibleColumns<C extends Pick<BoardColumn, "id" | "kind" | "hidden">>(columns: C[], grouped: Columns): C[] {
+  return columns.filter((c) => c.kind !== "backlog" && (!c.hidden || (grouped[c.id]?.length ?? 0) > 0));
+}
+
+export const flatten = (columns: Columns): Task[] => Object.values(columns).flat();
 
 /** The column a drag target belongs to: a column id itself, or the column holding a task. */
-export function findColumn(columns: Columns, id: string): TaskStatus | null {
-  if (isStatus(id)) return id;
-  return STATUSES.find((s) => columns[s].some((t) => t.id === id)) ?? null;
+export function findColumn(columns: Columns, id: string): string | null {
+  if (Object.hasOwn(columns, id)) return id;
+  return Object.keys(columns).find((key) => columns[key].some((t) => t.id === id)) ?? null;
 }
 
 /**
  * Moves a task into another column while dragging: before the task it is over, or to the
- * end when it is over the column itself.
+ * end when it is over the column itself. `statusOf` gives the status the target column
+ * counts as, so the card shows it before the API answers.
  */
-export function moveToColumn(columns: Columns, activeId: string, overId: string): Columns {
+export function moveToColumn(
+  columns: Columns,
+  activeId: string,
+  overId: string,
+  statusOf: (columnId: string) => TaskStatus | undefined = () => undefined,
+): Columns {
   const from = findColumn(columns, activeId);
   const to = findColumn(columns, overId);
   if (!from || !to || from === to) return columns;
@@ -54,41 +77,42 @@ export function moveToColumn(columns: Columns, activeId: string, overId: string)
   const target = columns[to].filter((t) => t.id !== activeId);
   const overIndex = target.findIndex((t) => t.id === overId);
   const index = overIndex === -1 ? target.length : overIndex;
+  const moved = { ...task, column_id: to, status: statusOf(to) ?? task.status };
 
   return {
     ...columns,
     [from]: columns[from].filter((t) => t.id !== activeId),
-    [to]: [...target.slice(0, index), { ...task, status: to }, ...target.slice(index)],
+    [to]: [...target.slice(0, index), moved, ...target.slice(index)],
   };
 }
 
 /** Moves a task to where another task in the same column is. */
 export function reorderInColumn(columns: Columns, activeId: string, overId: string): Columns {
-  const status = findColumn(columns, activeId);
-  if (!status || findColumn(columns, overId) !== status || activeId === overId) return columns;
-  const items = [...columns[status]];
+  const column = findColumn(columns, activeId);
+  if (!column || findColumn(columns, overId) !== column || activeId === overId) return columns;
+  const items = [...columns[column]];
   const from = items.findIndex((t) => t.id === activeId);
   const to = items.findIndex((t) => t.id === overId);
   if (to === -1) return columns;
   const [task] = items.splice(from, 1);
   items.splice(to, 0, task);
-  return { ...columns, [status]: items };
+  return { ...columns, [column]: items };
 }
 
 /**
- * Where a task sits, as the API's move body: its status and the task directly above it
+ * Where a task sits, as the API's move body: its column and the task directly above it
  * (or below it when it is first). One neighbor is enough, and is robust to other changes
  * in the column since the board was loaded.
  */
 export function placement(columns: Columns, taskId: string) {
-  const status = findColumn(columns, taskId);
-  if (!status) return null;
-  const items = columns[status];
+  const column = findColumn(columns, taskId);
+  if (!column) return null;
+  const items = columns[column];
   const index = items.findIndex((t) => t.id === taskId);
   const above = items[index - 1];
   const below = items[index + 1];
   return {
-    status,
+    column_id: column,
     ...(above ? { after_id: above.id } : below ? { before_id: below.id } : {}),
   };
 }
@@ -105,9 +129,10 @@ export const replaceTask = (tasks: Task[], task: Task) => tasks.map((t) => (t.id
 
 const STATUS_ORDER = Object.fromEntries(STATUSES.map((s, i) => [s, i])) as Record<TaskStatus, number>;
 
-/** Board order, as the API sorts it: status, then position, then id. */
+/** Board order, as the API sorts it: status, column, position, then id. */
 function compareBoardOrder(a: Task, b: Task): number {
   if (a.status !== b.status) return STATUS_ORDER[a.status] - STATUS_ORDER[b.status];
+  if (a.column_id !== b.column_id) return a.column_id < b.column_id ? -1 : 1;
   if (a.position !== b.position) return a.position < b.position ? -1 : 1;
   return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
 }

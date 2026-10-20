@@ -102,7 +102,8 @@ export default function HelpPage() {
           <ul>
             <li>
               <strong>Projects</strong> hold <strong>tasks</strong>, which move through Backlog, To do, In progress
-              and Done. Big pieces of work are <strong>epics</strong>; <strong>labels</strong> tag tasks.
+              and Done, plus any columns you add. Big pieces of work are <strong>epics</strong>;{" "}
+              <strong>labels</strong> tag tasks.
             </li>
             <li>
               <strong>Agents</strong> are named AI teammates (like “Claude” or “Docs bot”). Each has its own API
@@ -117,8 +118,16 @@ export default function HelpPage() {
           <h2 id="tasks">Working with tasks</h2>
           <ul>
             <li>
-              <strong>Board:</strong> To do, In progress and Done. Type in “Add a task” at the top of a column, drag
-              cards between columns, click a card to open it. Click the avatar on a card to assign it.
+              <strong>Board:</strong> To do, In progress and Done, plus your own columns. Type in “Add a task” at the
+              top of a column, drag cards between columns, click a card to open it. Click the avatar on a card to
+              assign it.
+            </li>
+            <li>
+              <strong>Columns:</strong> add your own (like In review or QA) in the project&apos;s{" "}
+              <strong>Settings</strong> under Columns: rename, reorder, or delete them (their tasks move to a column
+              you pick). Each counts as To do or In progress, which is the status agents, epic progress and My tasks
+              see. Backlog and Done are always there; To do and In progress can be hidden while they&apos;re empty.
+              Agents can move tasks into any column but can&apos;t change the columns.
             </li>
             <li>
               <strong>Backlog:</strong> its own tab, so a long backlog doesn&apos;t crowd the board. New tasks from
@@ -131,7 +140,7 @@ export default function HelpPage() {
               in the project&apos;s <strong>Settings</strong> under Board.
             </li>
             <li>
-              <strong>Task panel:</strong> status, priority, type, assignee, due date, epic and labels, a Markdown
+              <strong>Task panel:</strong> column, priority, type, assignee, due date, epic and labels, a Markdown
               description, comments and activity (the latest changes; load older ones as you need them). It has its
               own link you can share.
             </li>

@@ -3,6 +3,7 @@ import {
   BOARD_COLUMNS,
   findColumn,
   flatten,
+  groupByColumn,
   groupByStatus,
   inDoneWindow,
   moveToColumn,
@@ -11,21 +12,56 @@ import {
   samePlacement,
   syncTask,
   taskHref,
+  visibleColumns,
 } from "./board";
 import type { Task, TaskStatus } from "./types";
 
-const task = (id: string, status: TaskStatus) => ({ id, status }) as Task;
+// Columns keyed by id; here the ids double as readable names.
+const COLUMN_STATUS: Record<string, TaskStatus> = { backlog: "backlog", todo: "todo", review: "in_progress", done: "done" };
+const task = (id: string, column: string) => ({ id, column_id: column, status: COLUMN_STATUS[column] }) as Task;
 const ids = (tasks: Task[]) => tasks.map((t) => t.id);
+const statusOf = (column: string) => COLUMN_STATUS[column];
 
 const board = () =>
-  groupByStatus([task("a", "backlog"), task("b", "backlog"), task("c", "todo"), task("d", "done")]);
+  groupByColumn(
+    [task("a", "backlog"), task("b", "backlog"), task("c", "todo"), task("d", "done")],
+    ["backlog", "todo", "review", "done"],
+  );
 
-describe("groupByStatus / flatten", () => {
-  test("group in order and flatten back in board order", () => {
+describe("groupByColumn / groupByStatus / flatten", () => {
+  test("group in column order and flatten back in board order", () => {
     const columns = board();
+    expect(Object.keys(columns)).toEqual(["backlog", "todo", "review", "done"]);
     expect(ids(columns.backlog)).toEqual(["a", "b"]);
-    expect(columns.in_progress).toEqual([]);
+    expect(columns.review).toEqual([]);
     expect(ids(flatten(columns))).toEqual(["a", "b", "c", "d"]);
+  });
+
+  test("group by status for pages that show statuses", () => {
+    const grouped = groupByStatus([task("a", "backlog"), task("r", "review")]);
+    expect(ids(grouped.in_progress)).toEqual(["r"]);
+    expect(Object.keys(grouped)).toEqual(["backlog", "todo", "in_progress", "done"]);
+  });
+});
+
+describe("visibleColumns", () => {
+  const columns = [
+    { id: "backlog", kind: "backlog", hidden: false },
+    { id: "todo", kind: "todo", hidden: true },
+    { id: "review", kind: "custom", hidden: false },
+    { id: "done", kind: "done", hidden: false },
+  ] as const;
+
+  test("leave out the Backlog and hidden columns", () => {
+    expect(visibleColumns([...columns], { ...board(), todo: [] }).map((c) => c.id)).toEqual(["review", "done"]);
+  });
+
+  test("show a hidden column while it still has tasks", () => {
+    expect(visibleColumns([...columns], board()).map((c) => c.id)).toEqual([
+      "todo",
+      "review",
+      "done",
+    ]);
   });
 });
 
@@ -38,15 +74,17 @@ describe("findColumn", () => {
 });
 
 describe("moveToColumn", () => {
-  test("inserts before the task it is over and updates the status", () => {
-    const columns = moveToColumn(board(), "a", "c");
+  test("inserts before the task it is over and updates the column and status", () => {
+    const columns = moveToColumn(board(), "a", "c", statusOf);
     expect(ids(columns.backlog)).toEqual(["b"]);
     expect(ids(columns.todo)).toEqual(["a", "c"]);
-    expect(columns.todo[0].status).toBe("todo");
+    expect(columns.todo[0]).toMatchObject({ column_id: "todo", status: "todo" });
   });
 
   test("appends when over the column itself, including empty ones", () => {
-    expect(ids(moveToColumn(board(), "a", "in_progress").in_progress)).toEqual(["a"]);
+    const moved = moveToColumn(board(), "a", "review", statusOf);
+    expect(ids(moved.review)).toEqual(["a"]);
+    expect(moved.review[0]).toMatchObject({ column_id: "review", status: "in_progress" });
     expect(ids(moveToColumn(board(), "a", "todo").todo)).toEqual(["c", "a"]);
   });
 
@@ -66,9 +104,9 @@ describe("reorderInColumn", () => {
 describe("placement", () => {
   test("uses the task above, or below when first, or nothing when alone", () => {
     const columns = board();
-    expect(placement(columns, "b")).toEqual({ status: "backlog", after_id: "a" });
-    expect(placement(columns, "a")).toEqual({ status: "backlog", before_id: "b" });
-    expect(placement(columns, "c")).toEqual({ status: "todo" });
+    expect(placement(columns, "b")).toEqual({ column_id: "backlog", after_id: "a" });
+    expect(placement(columns, "a")).toEqual({ column_id: "backlog", before_id: "b" });
+    expect(placement(columns, "c")).toEqual({ column_id: "todo" });
   });
 
   test("samePlacement detects drags that end where they started", () => {
@@ -80,8 +118,8 @@ describe("placement", () => {
 });
 
 describe("syncTask", () => {
-  const placed = (id: string, status: TaskStatus, position: string, archived = false) =>
-    ({ id, status, position, archived_at: archived ? "2026-01-01T00:00:00Z" : null }) as Task;
+  const placed = (id: string, status: TaskStatus, position: string, archived = false, column = status as string) =>
+    ({ id, status, column_id: column, position, archived_at: archived ? "2026-01-01T00:00:00Z" : null }) as Task;
   const tasks = [placed("a", "backlog", "a0"), placed("b", "backlog", "a1"), placed("c", "done", "a0")];
 
   test("replaces a task in place when its position is unchanged", () => {
@@ -99,6 +137,11 @@ describe("syncTask", () => {
   test("adds a new task and drops an archived one", () => {
     expect(ids(syncTask(tasks, placed("d", "todo", "a0")))).toEqual(["a", "b", "d", "c"]);
     expect(ids(syncTask(tasks, placed("b", "backlog", "a1", true)))).toEqual(["a", "c"]);
+  });
+
+  test("orders columns of the same status by column, like the API", () => {
+    const inProgress = [placed("x", "in_progress", "a0", false, "c2"), placed("y", "in_progress", "a0", false, "c9")];
+    expect(ids(syncTask(inProgress, placed("z", "in_progress", "Zz", false, "c5")))).toEqual(["x", "z", "y"]);
   });
 
   test("compares positions byte-wise, like the database", () => {
