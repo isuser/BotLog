@@ -23,8 +23,9 @@ export const GET = route<Params>(async ({ db, url, params }) => {
 });
 
 /**
- * Adds a custom column, by default just before Done. People only: agents move tasks
- * between columns but don't manage them.
+ * Adds a custom column, by default just before Done. It counts as To do if it lands before
+ * In progress, else In progress. People only: agents move tasks between columns but don't
+ * manage them.
  */
 export const POST = route<Params>(
   async ({ db, request, params }) => {

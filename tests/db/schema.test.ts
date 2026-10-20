@@ -682,12 +682,13 @@ describe("board columns", () => {
     );
   const builtin = async (sub: string, projectId: string, kind: string) =>
     (await columns(sub, projectId)).find((c) => c.kind === kind)!;
-  const addColumn = (sub: string, projectId: string, name: string, position: string, countsAs = "in_progress") =>
+  // Built-ins sit at a0 (Backlog), a1 (To do), a2 (In progress) and a3 (Done).
+  const addColumn = (sub: string, projectId: string, name: string, position: string) =>
     as(db, { sub }, (tx) =>
       one<Column>(
         tx,
-        "insert into board_column (project_id, name, counts_as, position) values ($1, $2, $3, $4) returning *",
-        [projectId, name, countsAs, position],
+        "insert into board_column (project_id, name, position) values ($1, $2, $3) returning *",
+        [projectId, name, position],
       ),
     );
   const taskRow = (sub: string, id: string) =>
@@ -766,7 +767,12 @@ describe("board columns", () => {
     );
     await expect(addColumn(userId, projectId, "After done", "a4")).rejects.toThrow(/between Backlog and Done/);
     await expect(addColumn(userId, projectId, "Before backlog", "Zz")).rejects.toThrow(/between Backlog and Done/);
-    await expect(addColumn(userId, projectId, "Shipped", "a2V", "done")).rejects.toThrow(/board_column_counts_as/);
+    // What a custom column counts as follows its place; clients can't set it.
+    await expect(
+      update(userId, "insert into board_column (project_id, name, counts_as, position) values ($1, 'Shipped', 'done', 'a2V')", [
+        projectId,
+      ]),
+    ).rejects.toThrow(/permission denied/);
     await expect(addColumn(userId, projectId, "to DO", "a2V")).rejects.toThrow(/board_column_name_idx/);
 
     const task = await createTask(userId, projectId);
@@ -780,13 +786,44 @@ describe("board columns", () => {
     await update(userId, "update board_column set position = 'a2V' where id = $1", [todo.id]);
   });
 
-  test("changing what a custom column counts as changes its tasks' status", async () => {
+  test("a custom column counts as To do before In progress and as In progress after it", async () => {
     const { userId, projectId } = await setup();
-    const ready = await addColumn(userId, projectId, "Ready", "a2V");
+    expect((await addColumn(userId, projectId, "Ready", "a1V")).counts_as).toBe("todo");
+    expect((await addColumn(userId, projectId, "Ideas", "a0V")).counts_as).toBe("todo");
+    expect((await addColumn(userId, projectId, "Review", "a2V")).counts_as).toBe("in_progress");
+    // Not on In progress's own spot, where it would be neither side.
+    await expect(addColumn(userId, projectId, "Same place", "a2")).rejects.toThrow(/share a place/);
+    const inProgress = await builtin(userId, projectId, "in_progress");
+    await expect(
+      update(userId, "update board_column set position = 'a2V' where id = $1", [inProgress.id]),
+    ).rejects.toThrow(/share a place/);
+  });
+
+  test("moving a column across In progress changes its status and its tasks'", async () => {
+    const { userId, projectId } = await setup();
+    const ready = await addColumn(userId, projectId, "Ready", "a1V");
     const task = await createTask(userId, projectId);
     await update(userId, "update task set column_id = $1 where id = $2", [ready.id, task.id]);
-    await update(userId, "update board_column set counts_as = 'todo' where id = $1", [ready.id]);
     expect(await taskRow(userId, task.id)).toMatchObject({ column_id: ready.id, status: "todo" });
+
+    await update(userId, "update board_column set position = 'a2V' where id = $1", [ready.id]);
+    expect(await taskRow(userId, task.id)).toMatchObject({ column_id: ready.id, status: "in_progress" });
+    await expect(
+      update(userId, "update board_column set counts_as = 'todo' where id = $1", [ready.id]),
+    ).rejects.toThrow(/permission denied/);
+  });
+
+  test("moving In progress itself re-sorts the custom columns it passed, hidden or not", async () => {
+    const { userId, projectId } = await setup();
+    const review = await addColumn(userId, projectId, "Review", "a2V");
+    const inProgress = await builtin(userId, projectId, "in_progress");
+    const task = await createTask(userId, projectId);
+    await update(userId, "update task set column_id = $1 where id = $2", [review.id, task.id]);
+
+    // In progress moves to the right of Review: Review now comes before it, so it's To do.
+    await update(userId, "update board_column set hidden = true, position = 'a2X' where id = $1", [inProgress.id]);
+    expect((await columns(userId, projectId)).find((c) => c.id === review.id)!.counts_as).toBe("todo");
+    expect(await taskRow(userId, task.id)).toMatchObject({ column_id: review.id, status: "todo" });
   });
 
   test("deleting a custom column moves its tasks first; built-ins can't be deleted", async () => {

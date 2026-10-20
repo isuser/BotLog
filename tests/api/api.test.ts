@@ -288,12 +288,14 @@ describe("board columns", () => {
     expect(review.status, JSON.stringify(review.body)).toBe(201);
     expect(review.body.data).toMatchObject({ kind: "custom", counts_as: "in_progress", hidden: false, task_count: 0 });
     const [todo] = (await listColumns()).filter((c) => c.kind === "todo");
-    const ready = await addColumn({ name: "Ready", counts_as: "todo", before_id: todo.id });
+    // Left of In progress, so it counts as To do.
+    const ready = await addColumn({ name: "Ready", before_id: todo.id });
     expect(ready.status).toBe(201);
+    expect(ready.body.data.counts_as).toBe("todo");
     expect((await listColumns()).map((c) => c.name)).toEqual(["Backlog", "Ready", "To do", "In progress", "In review", "Done"]);
 
     expect((await addColumn({ name: "in REVIEW" })).status).toBe(409);
-    expect((await addColumn({ name: "Shipped", counts_as: "done" })).status).toBe(400);
+    expect((await addColumn({ name: "Shipped", counts_as: "todo" })).status).toBe(400);
     const done = (await listColumns()).find((c) => c.kind === "done")!;
     expect((await addColumn({ name: "After done", after_id: done.id })).body.error.message).toMatch(/between Backlog and Done/);
   });

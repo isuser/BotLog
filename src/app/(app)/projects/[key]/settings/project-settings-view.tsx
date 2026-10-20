@@ -193,20 +193,15 @@ function BoardSection({ project }: { project: Project }) {
   );
 }
 
-/** What a custom column can count as. Backlog and Done are built-in only. */
-const COUNTS_AS = { todo: STATUS_LABELS.todo, in_progress: STATUS_LABELS.in_progress };
-type CountsAs = keyof typeof COUNTS_AS;
-
 /**
- * The board's columns, left to right: add, rename, reorder and delete custom ones, choose
- * what they count as, and hide or show To do and In progress.
+ * The board's columns, left to right: add, rename, reorder and delete custom ones, and hide
+ * or show To do and In progress. What a custom column counts as follows its place.
  */
 function ColumnsSection({ projectKey }: { projectKey: string }) {
   const columnsKey = `/projects/${projectKey}/columns`;
   const { mutate } = useSWRConfig();
   const { data: columns, mutate: mutateColumns } = useSWR(columnsKey, (path: string) => apiAll<BoardColumn>(path));
   const [newName, setNewName] = useState("");
-  const [newCountsAs, setNewCountsAs] = useState<CountsAs>("in_progress");
   const [deleting, setDeleting] = useState<BoardColumn | null>(null);
 
   /** Tasks show their column's name, so refresh them too after a change. */
@@ -231,7 +226,7 @@ function ColumnsSection({ projectKey }: { projectKey: string }) {
     event.preventDefault();
     const name = newName.trim();
     if (!name) return;
-    if (await run(() => api(columnsKey, { method: "POST", json: { name, counts_as: newCountsAs } }))) setNewName("");
+    if (await run(() => api(columnsKey, { method: "POST", json: { name } }))) setNewName("");
   }
 
   const update = (column: BoardColumn, change: Record<string, unknown>) =>
@@ -247,7 +242,7 @@ function ColumnsSection({ projectKey }: { projectKey: string }) {
     <Section
       id="settings-columns"
       title="Columns"
-      description="The board's columns, left to right. Backlog has its own tab and Done is always last. Each custom column counts as To do or In progress: that's the status agents, epic progress and My tasks see for its tasks."
+      description="The board's columns, left to right. Backlog has its own tab and Done is always last. New columns go just before Done. A column left of In progress counts as To do, one right of it as In progress: that's the status agents, epic progress and My tasks see for its tasks."
     >
       <form onSubmit={create} className="flex max-w-lg flex-wrap gap-2">
         <Input
@@ -258,7 +253,6 @@ function ColumnsSection({ projectKey }: { projectKey: string }) {
           onChange={(e) => setNewName(e.target.value)}
           inputContainerClassName="min-w-40 flex-1"
         />
-        <CountsAsSelect label="New column counts as" value={newCountsAs} onChange={setNewCountsAs} />
         <Button type="submit" variant="outline" disabled={!newName.trim()}>
           <PlusIcon /> Add
         </Button>
@@ -287,23 +281,6 @@ function ColumnsSection({ projectKey }: { projectKey: string }) {
         <DeleteColumnDialog column={deleting} columns={columns} onCancel={() => setDeleting(null)} onDelete={remove} />
       )}
     </Section>
-  );
-}
-
-function CountsAsSelect({ label, value, onChange }: { label: string; value: CountsAs; onChange: (value: CountsAs) => void }) {
-  return (
-    <Select value={value} items={COUNTS_AS} onValueChange={(next) => next && next !== value && onChange(next as CountsAs)}>
-      <SelectTrigger aria-label={label} className="h-9 w-36">
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        {(Object.keys(COUNTS_AS) as CountsAs[]).map((key) => (
-          <SelectItem key={key} value={key}>
-            {COUNTS_AS[key]}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
   );
 }
 
@@ -362,11 +339,7 @@ function ColumnRow({
         </span>
       )}
       {custom && (
-        <CountsAsSelect
-          label={`${column.name} counts as`}
-          value={column.counts_as as CountsAs}
-          onChange={(counts_as) => void onUpdate({ counts_as })}
-        />
+        <span className="text-muted-foreground shrink-0 text-xs">Counts as {STATUS_LABELS[column.counts_as]}</span>
       )}
       <span className="text-muted-foreground ml-auto shrink-0 text-xs tabular-nums">
         {column.task_count} task{column.task_count === 1 ? "" : "s"}

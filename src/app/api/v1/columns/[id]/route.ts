@@ -19,9 +19,10 @@ export const GET = route<Params>(async ({ db, params }) => {
 });
 
 /**
- * Renames, reorders (after_id / before_id), hides or shows a column, or changes what a
- * custom column counts as (its tasks' status follows). Built-ins keep their name; Backlog
- * and Done stay first and last; only an empty To do or In progress can be hidden.
+ * Renames, reorders (after_id / before_id), hides or shows a column. Moving a custom column
+ * across In progress (or In progress across custom columns) changes what they count as, and
+ * their tasks' status follows. Built-ins keep their name; Backlog and Done stay first and
+ * last; only an empty To do or In progress can be hidden.
  */
 export const PATCH = route<Params>(
   async ({ db, request, params }) => {

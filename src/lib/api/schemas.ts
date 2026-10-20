@@ -165,8 +165,10 @@ export const epicListFilters = z.object({
   archived: z.enum(["true", "false"]).optional(),
 });
 
-/** Custom columns count as To do or In progress; Backlog and Done are built-in only. */
-const columnCountsAs = z.enum(["todo", "in_progress"]);
+/**
+ * Where a column goes. What a custom column counts as follows from it: To do before In
+ * progress, In progress from there to Done (set by the database).
+ */
 const columnPlace = {
   /** The column that should end up directly left of it. */
   after_id: z.uuid().optional(),
@@ -175,13 +177,12 @@ const columnPlace = {
 };
 
 export const createColumnSchema = z
-  .object({ name: z.string().trim().min(1).max(50), counts_as: columnCountsAs.optional(), ...columnPlace })
+  .object({ name: z.string().trim().min(1).max(50), ...columnPlace })
   .strict();
 
 export const updateColumnSchema = z
   .object({
     name: z.string().trim().min(1).max(50).optional(),
-    counts_as: columnCountsAs.optional(),
     hidden: z.boolean().optional(),
     ...columnPlace,
   })
