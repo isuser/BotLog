@@ -125,8 +125,8 @@ export default function HelpPage() {
             <li>
               <strong>Columns:</strong> add your own (like In review or QA) in the project&apos;s{" "}
               <strong>Settings</strong> under Columns: rename, reorder, or delete them (their tasks move to a column
-              you pick). Each counts as To do or In progress, which is the status agents, epic progress and My tasks
-              see. Backlog and Done are always there; To do and In progress can be hidden while they&apos;re empty.
+              you pick). A column left of In progress counts as To do, one right of it as In progress: that&apos;s the
+              status agents, epic progress and My tasks see. Backlog and Done are always there; To do and In progress can be hidden while they&apos;re empty.
               Agents can move tasks into any column but can&apos;t change the columns.
             </li>
             <li>
