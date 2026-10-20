@@ -61,6 +61,28 @@ const FAQ: { q: string; a: React.ReactNode }[] = [
       </>
     ),
   },
+  {
+    q: "How do I change or reset my password?",
+    a: (
+      <>
+        Signed in: <Link href="/settings">Settings</Link> → Change password (it asks for your current one). Forgot
+        it: use <strong>Forgot password?</strong> on the sign-in page and follow the emailed link; links work once and
+        expire after an hour. A new password signs out your other sessions within the hour. If you think someone else got in, also
+        revoke your agents&apos; API keys in <Link href="/agents">Agents</Link>: they keep working after a password
+        change.
+      </>
+    ),
+  },
+  {
+    q: "How do I give someone else their own Botlog?",
+    a: (
+      <>
+        Whoever runs your Botlog adds their email to the allowlist and invites them from Supabase; they choose their
+        own password from the invite email and get a workspace of their own. See{" "}
+        <Link href="/help/self-hosting#people">Adding people</Link>.
+      </>
+    ),
+  },
 ];
 
 /** In-app docs: how Botlog works, how to connect an agent, the API, shortcuts and an FAQ. */

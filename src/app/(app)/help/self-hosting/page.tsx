@@ -12,6 +12,7 @@ const SECTIONS = [
   { id: "env", title: "3. Environment" },
   { id: "run", title: "4. Run it" },
   { id: "https", title: "5. HTTPS" },
+  { id: "people", title: "Adding people" },
   { id: "backups", title: "Backups" },
   { id: "updates", title: "Updates" },
   { id: "troubleshooting", title: "Troubleshooting" },
@@ -154,7 +155,25 @@ pnpm exec supabase db push`}
             <li>
               <strong>Set the Site URL</strong> (Authentication → URL Configuration) to your Botlog address.
             </li>
+            <li>
+              <strong>Point the email links at Botlog.</strong> Under Authentication → Emails, edit the{" "}
+              <strong>Invite user</strong> and <strong>Reset password</strong> templates so their link goes to
+              Botlog&apos;s confirm page instead of Supabase&apos;s default:
+            </li>
           </ol>
+          <CopyBlock
+            label="invite template link"
+            text={`<a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite">Accept the invite</a>`}
+          />
+          <CopyBlock
+            label="reset template link"
+            text={`<a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery">Reset your password</a>`}
+          />
+          <p>
+            Supabase&apos;s built-in email sender only sends a few emails an hour and is meant for testing. That&apos;s
+            enough for a handful of people; for more, set up your own SMTP under Authentication → Emails → SMTP
+            Settings.
+          </p>
 
           <h2 id="env">3. Environment</h2>
           <table>
@@ -221,6 +240,27 @@ node --env-file=.env .next/standalone/server.js`}
             <Link href="/help#agents">set up an agent</Link>.
           </p>
 
+          <h2 id="people">Adding people</h2>
+          <p>
+            Everyone gets their own workspace, created with their account; they don&apos;t see each other&apos;s
+            projects. To let someone in:
+          </p>
+          <ol>
+            <li>
+              Add their email to <code>ALLOWED_EMAILS</code> and redeploy (env changes only apply to a new
+              deployment).
+            </li>
+            <li>
+              In Supabase, go to Authentication → Users → <strong>Invite user</strong> and enter the same email. They
+              get an email, open the link, press Continue and choose a password.
+            </li>
+          </ol>
+          <p>
+            Invite links expire after an hour by default and work once. If one expires, send a new invite, or have them
+            use <strong>Forgot password?</strong> on the sign-in page (limited to 3 reset emails an hour per address).
+            Signed-in users can change their password from Settings.
+          </p>
+
           <h2 id="backups">Backups</h2>
           <ul>
             <li>
@@ -260,6 +300,15 @@ pnpm exec supabase db dump --linked --data-only -f data.sql`}
             <li>
               <strong>Can&apos;t sign in:</strong> the email must be in <code>ALLOWED_EMAILS</code> and the user must
               exist (and be confirmed) in Supabase.
+            </li>
+            <li>
+              <strong>Invite or reset link says it expired or was already used:</strong> links work once and expire
+              after an hour. Send a new one. If every link fails, check the email templates point at{" "}
+              <code>/auth/confirm</code> (step 2.7) and the Site URL is your Botlog address.
+            </li>
+            <li>
+              <strong>Invite or reset emails never arrive:</strong> the built-in sender&apos;s hourly limit is used up,
+              or they landed in spam. Set up your own SMTP for anything beyond a few people.
             </li>
             <li>
               <strong>Agents get errors on every request:</strong> the signing key isn&apos;t trusted yet. Check it was

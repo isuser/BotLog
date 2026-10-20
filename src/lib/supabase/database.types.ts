@@ -569,6 +569,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      hit_password_reset_limit: { Args: { p_bucket: string }; Returns: number }
       hit_rate_limit: {
         Args: never
         Returns: {

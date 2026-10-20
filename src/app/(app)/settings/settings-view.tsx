@@ -1,6 +1,7 @@
 "use client";
 
 import { CheckIcon } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
 import useSWR from "swr";
@@ -92,6 +93,12 @@ function ProfileSection({
       <div className="grid max-w-md gap-1">
         <span className="text-sm font-medium">Email</span>
         <span className="text-muted-foreground text-sm">{profile.email}</span>
+      </div>
+      <div className="grid max-w-md justify-items-start gap-1">
+        <span className="text-sm font-medium">Password</span>
+        <Link href="/set-password" className="text-sm underline-offset-4 hover:underline">
+          Change password
+        </Link>
       </div>
     </section>
   );

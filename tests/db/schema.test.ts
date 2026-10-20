@@ -229,6 +229,29 @@ describe("rate limits", () => {
     await expect(as(db, { sub: "" }, (tx) => tx.query("select * from public.hit_rate_limit()"))).rejects.toThrow(/not signed in|permission denied|invalid input/);
   });
 
+  test("the password reset limit counts per bucket and only the service role can call it", async () => {
+    const hitReset = (bucket: string) =>
+      db.transaction(async (tx) => {
+        await tx.exec("set local role service_role");
+        return one<{ hits: number }>(tx, "select public.hit_password_reset_limit($1) as hits", [bucket]);
+      });
+    expect((await hitReset("email:abc")).hits).toBe(1);
+    expect((await hitReset("email:abc")).hits).toBe(2);
+    expect((await hitReset("ip:1.2.3.4")).hits).toBe(1);
+    await expect(hitReset("")).rejects.toThrow(/bucket must be/);
+
+    const { userId } = await setup();
+    await expect(
+      as(db, { sub: userId }, (tx) => tx.query("select public.hit_password_reset_limit('email:abc')")),
+    ).rejects.toThrow(/permission denied/);
+    await expect(
+      db.transaction(async (tx) => {
+        await tx.exec("set local role anon");
+        return tx.query("select public.hit_password_reset_limit('email:abc')");
+      }),
+    ).rejects.toThrow(/permission denied/);
+  });
+
   test("title search has a trigram index", async () => {
     const { rows } = await db.query<{ indexdef: string }>("select indexdef from pg_indexes where indexname = 'task_title_trgm_idx'");
     expect(rows[0]?.indexdef).toMatch(/gin.*gin_trgm_ops/);
