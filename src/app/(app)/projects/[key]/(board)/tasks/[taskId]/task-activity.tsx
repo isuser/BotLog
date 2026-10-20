@@ -9,7 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { describeActivity, nameLookup } from "@/lib/client/activity";
 import { api, apiAll } from "@/lib/client/api";
 import { fullDate, timeAgo } from "@/lib/client/format";
-import type { Activity, Agent, Epic, Label, Task } from "@/lib/client/types";
+import type { Activity, Agent, BoardColumn, Epic, Label, Task } from "@/lib/client/types";
 import type { CurrentUser } from "./task-fields";
 
 /** Shown when a task opens; each "Load more" fetches the next few older entries. */
@@ -48,13 +48,16 @@ export function TaskActivity({ task, currentUser }: { task: Task; currentUser: C
   // Shared with the Epic and Labels fields, so these are usually cached already.
   const { data: labels } = useSWR(`/projects/${task.project_key}/labels`, (path: string) => apiAll<Label>(path));
   const { data: epics } = useSWR(`/projects/${task.project_key}/epics`, (path: string) => apiAll<Epic>(path));
+  const { data: columns } = useSWR(`/projects/${task.project_key}/columns`, (path: string) =>
+    apiAll<BoardColumn>(path),
+  );
 
   // Every change bumps the version, including ones made by agents and picked up on refocus.
   useEffect(() => {
     void mutate();
   }, [task.version, mutate]);
 
-  const names = nameLookup(currentUser, agents ?? [], task, { labels, epics });
+  const names = nameLookup(currentUser, agents ?? [], task, { labels, epics, columns });
   const hasMore = Boolean(data?.at(-1)?.next_cursor);
   const loadingMore = isValidating && size > (data?.length ?? 0);
   const entries = (data ?? [])

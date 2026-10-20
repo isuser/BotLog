@@ -13,7 +13,7 @@ import { api, ApiRequestError, isConflict } from "@/lib/client/api";
 import { COLUMNS, syncTask, taskHref, type TaskView } from "@/lib/client/board";
 import { isPlainKey, isTypingTarget, useKeydown } from "@/lib/client/shortcuts";
 import { fullDate, timeAgo } from "@/lib/client/format";
-import type { Task, TaskStatus } from "@/lib/client/types";
+import type { BoardColumn, Task, TaskStatus } from "@/lib/client/types";
 import { TaskActivity } from "./task-activity";
 import { TaskComments } from "./task-comments";
 import { TaskFields, TaskTitle, type CurrentUser, type FieldChange } from "./task-fields";
@@ -99,11 +99,17 @@ export function TaskPanel({
       (t) => api(`/tasks/${t.id}`, { method: "PATCH", json: { ...change.body, version: t.version } }),
     );
 
-  const move = (status: TaskStatus) =>
-    save(
-      (t) => ({ ...t, status }),
-      (t) => api(`/tasks/${t.id}/move`, { method: "POST", json: { status, version: t.version } }),
-    );
+  /** Moves to a status's column (the 1–4 shortcuts) or to a column (the Column field). */
+  const move = (to: TaskStatus | Pick<BoardColumn, "id" | "name" | "counts_as">) =>
+    typeof to === "string"
+      ? save(
+          (t) => ({ ...t, status: to }),
+          (t) => api(`/tasks/${t.id}/move`, { method: "POST", json: { status: to, version: t.version } }),
+        )
+      : save(
+          (t) => ({ ...t, status: to.counts_as, column_id: to.id, column: { id: to.id, name: to.name } }),
+          (t) => api(`/tasks/${t.id}/move`, { method: "POST", json: { column_id: to.id, version: t.version } }),
+        );
 
   async function setArchived(archived: boolean) {
     if (!task) return;

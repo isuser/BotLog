@@ -482,7 +482,7 @@ export type Database = {
           archived_at?: string | null
           assignee_agent_id?: string | null
           assignee_user_id?: string | null
-          column_id?: string
+          column_id: string
           created_at?: string
           description?: string
           done_at?: string | null
@@ -522,13 +522,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "task_column_fkey"
-            columns: ["column_id", "project_id"]
-            isOneToOne: false
-            referencedRelation: "board_column"
-            referencedColumns: ["id", "project_id"]
-          },
-          {
             foreignKeyName: "task_assignee_agent_id_fkey"
             columns: ["assignee_agent_id"]
             isOneToOne: false
@@ -541,6 +534,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profile"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_column_fkey"
+            columns: ["column_id", "project_id"]
+            isOneToOne: false
+            referencedRelation: "board_column"
+            referencedColumns: ["id", "project_id"]
           },
           {
             foreignKeyName: "task_epic_id_project_id_fkey"

@@ -21,7 +21,8 @@ const VALUE: Record<SortKey, (t: Task) => string | number | null> = {
   number: (t) => t.number,
   title: (t) => t.title,
   // Board order: column, then position within it.
-  status: (t) => `${STATUS_ORDER[t.status]}:${t.position}`,
+  // By status, then each column's tasks together, in board order.
+  status: (t) => `${STATUS_ORDER[t.status]}:${t.column_id}:${t.position}`,
   // Most urgent first when ascending.
   priority: (t) => PRIORITY_ORDER[t.priority],
   type: (t) => TYPE_ORDER[t.type],

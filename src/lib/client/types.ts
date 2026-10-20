@@ -1,5 +1,6 @@
 import type { serializeActivity } from "@/lib/api/activity";
 import type { serializeAgent, serializeApiKey } from "@/lib/api/agents";
+import type { serializeColumn } from "@/lib/api/columns";
 import type { serializeComment } from "@/lib/api/comments";
 import type { serializeEpic } from "@/lib/api/epics";
 import type { serializeLabel } from "@/lib/api/labels";
@@ -11,6 +12,8 @@ import type { serializeTask } from "@/lib/api/tasks";
 // The shapes the API returns, taken from its serializers so client and server can't drift.
 export type Project = ReturnType<typeof serializeProject>;
 export type Task = ReturnType<typeof serializeTask>;
+/** A project's board column (Backlog, To do, a custom one…). */
+export type BoardColumn = ReturnType<typeof serializeColumn>;
 export type Activity = ReturnType<typeof serializeActivity>;
 export type Comment = ReturnType<typeof serializeComment>;
 export type TaskStatus = (typeof TASK_STATUSES)[number];

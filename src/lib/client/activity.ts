@@ -4,8 +4,8 @@ import type { Activity, Task } from "./types";
 
 type Change = { from: unknown; to: unknown };
 
-/** Names for the people, agents, labels and epics an entry may refer to, by id. */
-export type NameLookup = (type: "user" | "agent" | "label" | "epic", id: string) => string | undefined;
+/** Names for the people, agents, labels, epics and columns an entry may refer to, by id. */
+export type NameLookup = (type: "user" | "agent" | "label" | "epic" | "column", id: string) => string | undefined;
 
 const label = <T extends string>(labels: Record<T, string>, value: unknown) =>
   labels[value as T] ?? String(value);
@@ -70,10 +70,16 @@ export function describeActivity(entry: Activity, names: NameLookup): string | n
       return "archived the task";
     case "restored":
       return "restored the task";
-    case "moved":
+    case "moved": {
+      // By column names when both are known (a deleted column's isn't), else by status.
+      const column = changes.column_id;
+      const from = column && names("column", String(column.from));
+      const to = column && names("column", String(column.to));
+      if (from && to) return `moved it from ${from} to ${to}`;
       // Between two columns with the same status (In progress → In review), only the column changes.
-      if (!changes.status) return changes.column_id ? "moved it to another column" : null;
+      if (!changes.status) return column ? (to ? `moved it to ${to}` : "moved it to another column") : null;
       return describeUpdate({ status: changes.status }, names)[0] ?? null;
+    }
     case "updated":
       return list(describeUpdate(changes, names)) || null;
     case "label_added":
@@ -89,18 +95,27 @@ export function describeActivity(entry: Activity, names: NameLookup): string | n
 
 /**
  * Ids → names from what the panel already has loaded: the viewer, agents, the task's assignee,
- * and the project's labels and epics.
+ * and the project's labels, epics and columns.
  */
 export function nameLookup(
   me: { id: string },
   agents: { id: string; name: string }[],
   task: Task,
-  { labels = [], epics = [] }: { labels?: { id: string; name: string }[]; epics?: { id: string; title: string }[] } = {},
+  {
+    labels = [],
+    epics = [],
+    columns = [],
+  }: {
+    labels?: { id: string; name: string }[];
+    epics?: { id: string; title: string }[];
+    columns?: { id: string; name: string }[];
+  } = {},
 ): NameLookup {
   const known = new Map<string, string>([[`user:${me.id}`, "you"]]);
   for (const agent of agents) known.set(`agent:${agent.id}`, agent.name);
   for (const label of labels) known.set(`label:${label.id}`, label.name);
   for (const epic of epics) known.set(`epic:${epic.id}`, epic.title);
+  for (const column of columns) known.set(`column:${column.id}`, column.name);
   if (task.epic) known.set(`epic:${task.epic.id}`, task.epic.title);
   if (task.assignee && !known.has(`${task.assignee.type}:${task.assignee.id}`)) {
     known.set(`${task.assignee.type}:${task.assignee.id}`, task.assignee.name || "someone");
