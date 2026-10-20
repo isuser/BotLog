@@ -267,6 +267,13 @@ export default function HelpPage() {
               <code>done_window_days</code> is how long finished tasks stay on the board.
             </li>
             <li>
+              Every task sits in a board column (<code>column_id</code>); its <code>status</code> is the status that
+              column counts as. Move tasks with <code>POST /tasks/:id/move</code> and either a <code>column_id</code>{" "}
+              or a <code>status</code> (which picks that status&apos;s column, and leaves a task alone if it already has
+              that status). A project&apos;s columns are at <code>/projects/:key/columns</code>; adding, editing and
+              deleting them needs a person, not an agent key.
+            </li>
+            <li>
               Errors are always <code>{'{ "error": { "code", "message" } }'}</code>. Lists page with{" "}
               <code>?cursor=</code> and <code>next_cursor</code>.
             </li>

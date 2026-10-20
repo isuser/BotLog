@@ -51,11 +51,16 @@ export const updateProjectSchema = z
   .strict()
   .refine((body) => Object.keys(body).length > 0, "Send at least one field to change.");
 
+/** A task goes to a column (`column_id`), or to a status's column (`status`); not both. */
+const oneTarget = (body: { status?: unknown; column_id?: unknown }) => !(body.status && body.column_id);
+const ONE_TARGET = "Send status or column_id, not both.";
+
 export const createTaskSchema = z
-  .object({ ...taskFields, status: taskStatus })
+  .object({ ...taskFields, status: taskStatus, column_id: z.uuid() })
   .partial()
   .required({ title: true })
-  .strict();
+  .strict()
+  .refine(oneTarget, ONE_TARGET);
 
 export const updateTaskSchema = z
   .object({ ...taskFields })
@@ -65,17 +70,20 @@ export const updateTaskSchema = z
   .refine((body) => Object.keys(body).length > 1, "Send at least one field to change besides version.");
 
 /**
- * Moves a task to a status and/or position. `after_id` is the task that should end up
- * directly above it, `before_id` the one directly below; with neither, it goes to the top.
+ * Moves a task to a column (or a status's column) and/or position. `after_id` is the task
+ * that should end up directly above it, `before_id` the one directly below; with neither,
+ * it goes to the top.
  */
 export const moveTaskSchema = z
   .object({
     status: taskStatus.optional(),
+    column_id: z.uuid().optional(),
     after_id: z.string().min(1).optional(),
     before_id: z.string().min(1).optional(),
     version,
   })
-  .strict();
+  .strict()
+  .refine(oneTarget, ONE_TARGET);
 
 export const createCommentSchema = z.object({ body: z.string().trim().min(1).max(20_000) }).strict();
 
@@ -100,6 +108,8 @@ export const taskListFilters = z.object({
   epic_id: z.union([z.literal("none"), z.uuid()]).optional(),
   /** Only tasks with this label. */
   label: z.uuid().optional(),
+  /** Only tasks in this column. */
+  column_id: z.uuid().optional(),
   /** Text search: a short ID like BOT-42 (or just 42), or words in the title. */
   q: z.string().trim().min(1).max(200).optional(),
   archived: z.enum(["true", "false"]).optional(),
@@ -153,6 +163,34 @@ export const updateEpicSchema = z
 export const epicListFilters = z.object({
   status: z.enum(EPIC_STATUSES).optional(),
   archived: z.enum(["true", "false"]).optional(),
+});
+
+/** Custom columns count as To do or In progress; Backlog and Done are built-in only. */
+const columnCountsAs = z.enum(["todo", "in_progress"]);
+const columnPlace = {
+  /** The column that should end up directly left of it. */
+  after_id: z.uuid().optional(),
+  /** The column that should end up directly right of it. */
+  before_id: z.uuid().optional(),
+};
+
+export const createColumnSchema = z
+  .object({ name: z.string().trim().min(1).max(50), counts_as: columnCountsAs.optional(), ...columnPlace })
+  .strict();
+
+export const updateColumnSchema = z
+  .object({
+    name: z.string().trim().min(1).max(50).optional(),
+    counts_as: columnCountsAs.optional(),
+    hidden: z.boolean().optional(),
+    ...columnPlace,
+  })
+  .strict()
+  .refine((body) => Object.keys(body).length > 0, "Send at least one field to change.");
+
+export const deleteColumnQuery = z.object({
+  /** Where the column's tasks go. Defaults to the built-in column for its status. */
+  move_to: z.uuid().optional(),
 });
 
 const labelFields = {

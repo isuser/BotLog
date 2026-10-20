@@ -33,6 +33,13 @@ describe("describeActivity", () => {
     expect(describeActivity(moved, names)).toBe("moved it from To do to In progress");
   });
 
+  test("describes a move between columns with the same status", () => {
+    const moved = entry("moved", { column_id: change("c1", "c2"), position: change("a", "b") });
+    expect(describeActivity(moved, names)).toBe("moved it to another column");
+    const withStatus = entry("moved", { status: change("todo", "done"), column_id: change("c1", "c2") });
+    expect(describeActivity(withStatus, names)).toBe("moved it from To do to Done");
+  });
+
   test("lists every changed field in one sentence", () => {
     const updated = entry("updated", {
       title: change("Old", "New"),

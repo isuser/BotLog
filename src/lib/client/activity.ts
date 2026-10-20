@@ -71,6 +71,8 @@ export function describeActivity(entry: Activity, names: NameLookup): string | n
     case "restored":
       return "restored the task";
     case "moved":
+      // Between two columns with the same status (In progress → In review), only the column changes.
+      if (!changes.status) return changes.column_id ? "moved it to another column" : null;
       return describeUpdate({ status: changes.status }, names)[0] ?? null;
     case "updated":
       return list(describeUpdate(changes, names)) || null;

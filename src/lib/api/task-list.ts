@@ -6,10 +6,11 @@ import { decodeCursor, keysetFilter, page, parseLimit } from "./pagination";
 import type { taskListFilters } from "./schemas";
 import { serializeTask, TASK_SELECT, type TaskRow } from "./tasks";
 
-const ORDER = ["status", "position", "id"] as const;
+// Status first keeps the board's order of categories; the client orders columns within them.
+const ORDER = ["status", "column_id", "position", "id"] as const;
 
 /**
- * Lists tasks in board order (status, then position), with filters and cursor pagination.
+ * Lists tasks in board order (status, column, then position), with filters and cursor pagination.
  * Archived tasks are left out unless `archived=true`, which lists only archived ones.
  */
 export async function listTasks(
@@ -41,6 +42,7 @@ export async function listTasks(
 
   query = filters.archived === "true" ? query.not("archived_at", "is", null) : query.is("archived_at", null);
   if (filters.status) query = query.in("status", filters.status);
+  if (filters.column_id) query = query.eq("column_id", filters.column_id);
   if (filters.type) query = query.eq("type", filters.type);
   if (filters.priority) query = query.eq("priority", filters.priority);
   if (filters.epic_id) {
@@ -56,7 +58,7 @@ export async function listTasks(
 
   const { data, error } = await query.limit(limit + 1);
   if (error) throw fromPostgrest(error);
-  const result = page(data as unknown as TaskRow[], limit, (row) => [row.status, row.position, row.id]);
+  const result = page(data as unknown as TaskRow[], limit, (row) => [row.status, row.column_id, row.position, row.id]);
   return { data: result.data.map(serializeTask), next_cursor: result.next_cursor };
 }
 

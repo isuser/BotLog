@@ -18,8 +18,8 @@ async function readAll<T>(query: RangeQuery<T>): Promise<T[]> {
 }
 
 /**
- * A whole project as plain data: the project, its epics, labels, tasks (with label ids) and
- * comments, archived items included. Ids are kept, so references between them still resolve.
+ * A whole project as plain data: the project, its board columns, epics, labels, tasks (with
+ * label ids) and comments, archived items included. Ids are kept, so references between them still resolve.
  */
 export async function exportProject(db: Db, projectId: string) {
   const { data: project, error } = await db
@@ -29,7 +29,16 @@ export async function exportProject(db: Db, projectId: string) {
     .single();
   if (error) throw fromPostgrest(error);
 
-  const [epics, labels, tasks, comments] = await Promise.all([
+  const [columns, epics, labels, tasks, comments] = await Promise.all([
+    readAll((from, to) =>
+      db
+        .from("board_column")
+        .select("id, kind, name, counts_as, position, hidden, created_at, updated_at")
+        .eq("project_id", projectId)
+        .order("position")
+        .order("id")
+        .range(from, to),
+    ),
     readAll((from, to) =>
       db
         .from("epic")
@@ -46,7 +55,7 @@ export async function exportProject(db: Db, projectId: string) {
       db
         .from("task")
         .select(
-          "id, number, title, description, type, status, position, priority, epic_id, assignee_user_id, assignee_agent_id, due_date, version, done_at, archived_at, created_at, updated_at, task_labels:task_label(label_id)",
+          "id, number, title, description, type, status, column_id, position, priority, epic_id, assignee_user_id, assignee_agent_id, due_date, version, done_at, archived_at, created_at, updated_at, task_labels:task_label(label_id)",
         )
         .eq("project_id", projectId)
         .order("number")
@@ -68,6 +77,7 @@ export async function exportProject(db: Db, projectId: string) {
     version: 1,
     exported_at: new Date().toISOString(),
     project,
+    columns,
     epics,
     labels,
     tasks: tasks.map(({ task_labels, ...task }) => ({

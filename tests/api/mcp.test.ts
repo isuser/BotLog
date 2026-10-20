@@ -103,6 +103,7 @@ describe.skipIf(!keyLive)("tools", () => {
       "create_label",
       "create_task",
       "get_task",
+      "list_columns",
       "list_epics",
       "list_labels",
       "list_my_tasks",

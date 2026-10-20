@@ -172,6 +172,7 @@ describe("realtime", () => {
         "select tablename from pg_publication_tables where pubname = 'supabase_realtime' order by tablename",
       )
     ).rows.map((r) => r.tablename);
+    // Not board_column: its changes reach boards through activity_log, which RLS filters.
     expect(tables).toEqual(["activity_log", "task"]);
   });
 
@@ -287,7 +288,8 @@ describe("workspace isolation", () => {
     }));
     expect(seen).toEqual({ projects: 1, tasks: 0, profiles: 0, activity: 0 });
 
-    await expect(createTask(b.userId, a.projectId)).rejects.toThrow(/row-level security/);
+    // The task's column is looked up first, and another workspace's columns are invisible.
+    await expect(createTask(b.userId, a.projectId)).rejects.toThrow(/row-level security|column not found/);
 
     const updated = await as(db, { sub: b.userId }, (tx) =>
       tx.query("update project set name = 'hacked' where id = $1", [a.projectId]),
@@ -460,7 +462,7 @@ describe("tasks", () => {
       ),
     );
     expect(entry.action).toBe("moved");
-    expect(Object.keys(entry.changes)).toEqual(["status"]);
+    expect(Object.keys(entry.changes).sort()).toEqual(["column_id", "status"]);
   });
 });
 
@@ -668,5 +670,227 @@ describe("activity log", () => {
         ),
       ),
     ).rejects.toThrow(/permission denied/);
+  });
+});
+
+describe("board columns", () => {
+  type Column = { id: string; kind: string; name: string; counts_as: string; position: string; hidden: boolean };
+
+  const columns = (sub: string, projectId: string) =>
+    as(db, { sub }, async (tx) =>
+      (await tx.query<Column>("select * from board_column where project_id = $1 order by position", [projectId])).rows,
+    );
+  const builtin = async (sub: string, projectId: string, kind: string) =>
+    (await columns(sub, projectId)).find((c) => c.kind === kind)!;
+  const addColumn = (sub: string, projectId: string, name: string, position: string, countsAs = "in_progress") =>
+    as(db, { sub }, (tx) =>
+      one<Column>(
+        tx,
+        "insert into board_column (project_id, name, counts_as, position) values ($1, $2, $3, $4) returning *",
+        [projectId, name, countsAs, position],
+      ),
+    );
+  const taskRow = (sub: string, id: string) =>
+    as(db, { sub }, (tx) =>
+      one<{ column_id: string; status: string; done_at: string | null; version: number }>(
+        tx,
+        "select column_id, status, done_at, version from task where id = $1",
+        [id],
+      ),
+    );
+  const update = (sub: string, sql: string, params: unknown[]) => as(db, { sub }, (tx) => tx.query(sql, params));
+
+  test("every project starts with Backlog, To do, In progress and Done, and new tasks go to Backlog", async () => {
+    const { userId, projectId } = await setup();
+    expect((await columns(userId, projectId)).map((c) => [c.kind, c.name, c.counts_as, c.hidden])).toEqual([
+      ["backlog", "Backlog", "backlog", false],
+      ["todo", "To do", "todo", false],
+      ["in_progress", "In progress", "in_progress", false],
+      ["done", "Done", "done", false],
+    ]);
+    const task = await createTask(userId, projectId);
+    const backlog = await builtin(userId, projectId, "backlog");
+    expect(await taskRow(userId, task.id)).toMatchObject({ column_id: backlog.id, status: "backlog" });
+  });
+
+  test("moving to a column sets the status; setting a status moves to its column", async () => {
+    const { userId, projectId } = await setup();
+    const review = await addColumn(userId, projectId, "In review", "a2V");
+    const task = await createTask(userId, projectId);
+
+    await update(userId, "update task set column_id = $1 where id = $2", [review.id, task.id]);
+    expect(await taskRow(userId, task.id)).toMatchObject({ column_id: review.id, status: "in_progress" });
+
+    // Same status, so it stays in its custom column; another status moves it.
+    await update(userId, "update task set title = 'Renamed' where id = $1", [task.id]);
+    expect((await taskRow(userId, task.id)).column_id).toBe(review.id);
+    await update(userId, "update task set status = 'done' where id = $1", [task.id]);
+    const done = await builtin(userId, projectId, "done");
+    expect(await taskRow(userId, task.id)).toMatchObject({ column_id: done.id, status: "done" });
+    expect((await taskRow(userId, task.id)).done_at).not.toBeNull();
+
+    // A status that doesn't match the column is overruled by the column.
+    await update(userId, "update task set column_id = $1, status = 'todo' where id = $2", [review.id, task.id]);
+    expect(await taskRow(userId, task.id)).toMatchObject({ column_id: review.id, status: "in_progress", done_at: null });
+  });
+
+  test("a status move into a hidden built-in goes to the first visible column counting as it", async () => {
+    const { userId, projectId } = await setup();
+    const inProgress = await builtin(userId, projectId, "in_progress");
+    await update(userId, "update board_column set hidden = true where id = $1", [inProgress.id]);
+    const task = await createTask(userId, projectId);
+
+    // No visible column counts as In progress: the hidden one takes it (and shows while it has tasks).
+    await update(userId, "update task set status = 'in_progress' where id = $1", [task.id]);
+    expect((await taskRow(userId, task.id)).column_id).toBe(inProgress.id);
+
+    const doing = await addColumn(userId, projectId, "Doing", "a2V");
+    const later = await addColumn(userId, projectId, "Later", "a2X");
+    expect(later.position > doing.position).toBe(true);
+    await update(userId, "update task set status = 'todo' where id = $1", [task.id]);
+    await update(userId, "update task set status = 'in_progress' where id = $1", [task.id]);
+    expect((await taskRow(userId, task.id)).column_id).toBe(doing.id);
+  });
+
+  test("built-ins keep their names and place, and only empty To do / In progress can be hidden", async () => {
+    const { userId, projectId } = await setup();
+    const [backlog, todo, , done] = await columns(userId, projectId);
+    await expect(update(userId, "update board_column set name = 'Ready' where id = $1", [todo.id])).rejects.toThrow(
+      /keep their name/,
+    );
+    await expect(update(userId, "update board_column set position = 'a9' where id = $1", [done.id])).rejects.toThrow(
+      /first and last/,
+    );
+    await expect(update(userId, "update board_column set hidden = true where id = $1", [backlog.id])).rejects.toThrow(
+      /board_column_hidden/,
+    );
+    await expect(addColumn(userId, projectId, "After done", "a4")).rejects.toThrow(/between Backlog and Done/);
+    await expect(addColumn(userId, projectId, "Before backlog", "Zz")).rejects.toThrow(/between Backlog and Done/);
+    await expect(addColumn(userId, projectId, "Shipped", "a2V", "done")).rejects.toThrow(/board_column_counts_as/);
+    await expect(addColumn(userId, projectId, "to DO", "a2V")).rejects.toThrow(/board_column_name_idx/);
+
+    const task = await createTask(userId, projectId);
+    await update(userId, "update task set status = 'todo' where id = $1", [task.id]);
+    await expect(update(userId, "update board_column set hidden = true where id = $1", [todo.id])).rejects.toThrow(
+      /Only an empty column/,
+    );
+    await update(userId, "update task set archived_at = now() where id = $1", [task.id]);
+    await update(userId, "update board_column set hidden = true where id = $1", [todo.id]);
+    // Reordering To do among the other columns is fine.
+    await update(userId, "update board_column set position = 'a2V' where id = $1", [todo.id]);
+  });
+
+  test("changing what a custom column counts as changes its tasks' status", async () => {
+    const { userId, projectId } = await setup();
+    const ready = await addColumn(userId, projectId, "Ready", "a2V");
+    const task = await createTask(userId, projectId);
+    await update(userId, "update task set column_id = $1 where id = $2", [ready.id, task.id]);
+    await update(userId, "update board_column set counts_as = 'todo' where id = $1", [ready.id]);
+    expect(await taskRow(userId, task.id)).toMatchObject({ column_id: ready.id, status: "todo" });
+  });
+
+  test("deleting a custom column moves its tasks first; built-ins can't be deleted", async () => {
+    const { userId, projectId } = await setup();
+    const review = await addColumn(userId, projectId, "Review", "a2V");
+    const task = await createTask(userId, projectId);
+    await update(userId, "update task set column_id = $1 where id = $2", [review.id, task.id]);
+    const done = await builtin(userId, projectId, "done");
+
+    const remove = (columnId: string, moveTo: string | null) =>
+      update(userId, "select public.delete_board_column($1, $2)", [columnId, moveTo]);
+    await expect(remove(review.id, null)).rejects.toThrow(/move_to must be another column/);
+    await expect(remove(review.id, review.id)).rejects.toThrow(/move_to must be another column/);
+    await expect(remove(done.id, review.id)).rejects.toThrow(/can't be deleted/);
+    await expect(update(userId, "delete from board_column where id = $1", [done.id])).resolves.toMatchObject({
+      affectedRows: 0,
+    });
+
+    await remove(review.id, done.id);
+    expect(await taskRow(userId, task.id)).toMatchObject({ column_id: done.id, status: "done" });
+    expect((await columns(userId, projectId)).map((c) => c.name)).toEqual(["Backlog", "To do", "In progress", "Done"]);
+  });
+
+  test("agents move tasks between columns but can't manage columns", async () => {
+    const { userId, projectId } = await setup();
+    const review = await addColumn(userId, projectId, "Review", "a2V");
+    const agent = await createAgent(userId);
+    const task = await createTask(userId, projectId);
+
+    await as(db, agent, (tx) => tx.query("update task set column_id = $1 where id = $2", [review.id, task.id]));
+    expect((await taskRow(userId, task.id)).column_id).toBe(review.id);
+
+    await expect(
+      as(db, agent, (tx) =>
+        tx.query("insert into board_column (project_id, name, position) values ($1, 'Bot column', 'a2X')", [projectId]),
+      ),
+    ).rejects.toThrow(/row-level security/);
+    const renamed = await as(db, agent, (tx) =>
+      tx.query("update board_column set name = 'Hacked' where id = $1", [review.id]),
+    );
+    expect(renamed.affectedRows).toBe(0);
+    // A valid move, but the delete is refused, so the task move rolls back with it.
+    const done = await builtin(userId, projectId, "done");
+    await expect(
+      as(db, agent, (tx) => tx.query("select public.delete_board_column($1, $2)", [review.id, done.id])),
+    ).rejects.toThrow(/don't have access/);
+    expect((await taskRow(userId, task.id)).column_id).toBe(review.id);
+  });
+
+  test("column changes are logged on the project, deletions included", async () => {
+    const { userId, projectId } = await setup();
+    const review = await addColumn(userId, projectId, "Review", "a2V");
+    await update(userId, "update board_column set name = 'QA' where id = $1", [review.id]);
+    const done = await builtin(userId, projectId, "done");
+    await update(userId, "select public.delete_board_column($1, $2)", [review.id, done.id]);
+    const entries = await as(db, { sub: userId }, async (tx) =>
+      (
+        await tx.query<{ action: string; changes: Record<string, unknown> }>(
+          "select action, changes from activity_log where entity_type = 'board_column' and entity_id = $1 order by seq",
+          [review.id],
+        )
+      ).rows,
+    );
+    expect(entries.map((e) => e.action)).toEqual(["created", "updated", "deleted"]);
+    expect(entries[2].changes).toEqual({ name: "QA" });
+  });
+
+  test("deleted columns' tasks can't go to a hidden column or another project's", async () => {
+    const a = await setup();
+    const b = await setup("OTB");
+    const review = await addColumn(a.userId, a.projectId, "Review", "a2V");
+    const todo = await builtin(a.userId, a.projectId, "todo");
+    await update(a.userId, "update board_column set hidden = true where id = $1", [todo.id]);
+    const remove = (sub: string, columnId: string, moveTo: string) =>
+      update(sub, "select public.delete_board_column($1, $2)", [columnId, moveTo]);
+
+    await expect(remove(a.userId, review.id, todo.id)).rejects.toThrow(/move_to is hidden/);
+    const otherDone = await builtin(b.userId, b.projectId, "done");
+    await expect(remove(a.userId, review.id, otherDone.id)).rejects.toThrow(/another column in this project/);
+    // Another workspace can't see the column at all.
+    await expect(remove(b.userId, review.id, otherDone.id)).rejects.toThrow(/column not found/);
+    await expect(update(b.userId, "delete from board_column where id = $1", [review.id])).resolves.toMatchObject({
+      affectedRows: 0,
+    });
+    expect((await columns(a.userId, a.projectId)).map((c) => c.name)).toContain("Review");
+  });
+
+  test("columns stay inside their workspace and project", async () => {
+    const a = await setup();
+    const b = await setup("OTH");
+    const aColumns = await columns(a.userId, a.projectId);
+    expect(await columns(b.userId, a.projectId)).toEqual([]);
+
+    // A task can't sit in a column of another project, even in the same workspace.
+    const other = await as(db, { sub: a.userId }, (tx) =>
+      one<{ id: string }>(tx, "insert into project (name, key) values ('Other', 'OT2') returning id"),
+    );
+    const otherTodo = await builtin(a.userId, other.id, "todo");
+    const task = await createTask(a.userId, a.projectId);
+    await expect(
+      update(a.userId, "update task set column_id = $1 where id = $2", [otherTodo.id, task.id]),
+    ).rejects.toThrow(/column not found/);
+    await expect(
+      update(b.userId, "update board_column set name = 'Mine' where id = $1", [aColumns[1].id]),
+    ).resolves.toMatchObject({ affectedRows: 0 });
   });
 });
