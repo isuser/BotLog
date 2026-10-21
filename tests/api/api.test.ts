@@ -11,6 +11,7 @@ import * as agentRoute from "@/app/api/v1/agents/[id]/route";
 import * as agents from "@/app/api/v1/agents/route";
 import * as columnRoute from "@/app/api/v1/columns/[id]/route";
 import * as epicRestore from "@/app/api/v1/epics/[id]/restore/route";
+import * as commentRoute from "@/app/api/v1/comments/[id]/route";
 import * as epicRoute from "@/app/api/v1/epics/[id]/route";
 import * as labelRoute from "@/app/api/v1/labels/[id]/route";
 import * as me from "@/app/api/v1/me/route";
@@ -375,6 +376,40 @@ describe("comments, activity and my tasks", () => {
 
     const list = await call(taskComments.GET, { params: { id: task.short_id }, token: alice.token });
     expect(list.body.data.map((c: { body: string }) => c.body)).toEqual(["Looks good"]);
+  });
+
+  test("the author edits a comment; it shows as edited and is logged", async () => {
+    const task = await createTask({ title: "Edit me" });
+    const posted = (await call(taskComments.POST, { method: "POST", params: { id: task.id }, token: alice.token, body: { body: "Typo" } })).body.data;
+    expect(posted).toMatchObject({ edited_at: null, can_edit: true, can_delete: true });
+
+    const same = await call(commentRoute.PATCH, { method: "PATCH", params: { id: posted.id }, token: alice.token, body: { body: "Typo" } });
+    expect(same.body.data.edited_at).toBeNull();
+    const edited = await call(commentRoute.PATCH, { method: "PATCH", params: { id: posted.id }, token: alice.token, body: { body: "Fixed" } });
+    expect(edited.status, JSON.stringify(edited.body)).toBe(200);
+    expect(edited.body.data).toMatchObject({ body: "Fixed", author: { type: "user", id: alice.id } });
+    expect(edited.body.data.edited_at).not.toBeNull();
+
+    expect((await call(commentRoute.PATCH, { method: "PATCH", params: { id: posted.id }, token: alice.token, body: { body: " " } })).status).toBe(400);
+    expect((await call(commentRoute.PATCH, { method: "PATCH", params: { id: posted.id }, token: bob.token, body: { body: "Mine" } })).status).toBe(404);
+
+    const activity = await call(taskActivity.GET, { params: { id: task.id }, token: alice.token });
+    expect(activity.body.data[0]).toMatchObject({ action: "comment_edited", changes: { comment_id: posted.id } });
+  });
+
+  test("deleting a comment removes it and logs the deletion", async () => {
+    const task = await createTask({ title: "Delete a comment" });
+    const posted = (await call(taskComments.POST, { method: "POST", params: { id: task.id }, token: alice.token, body: { body: "Oops" } })).body.data;
+    expect((await call(commentRoute.DELETE, { method: "DELETE", params: { id: posted.id }, token: bob.token })).status).toBe(404);
+
+    const deleted = await call(commentRoute.DELETE, { method: "DELETE", params: { id: posted.id }, token: alice.token });
+    expect(deleted.status, JSON.stringify(deleted.body)).toBe(200);
+    expect((await call(commentRoute.GET, { params: { id: posted.id }, token: alice.token })).status).toBe(404);
+    const list = await call(taskComments.GET, { params: { id: task.id }, token: alice.token });
+    expect(list.body.data).toEqual([]);
+
+    const activity = await call(taskActivity.GET, { params: { id: task.id }, token: alice.token });
+    expect(activity.body.data[0]).toMatchObject({ action: "comment_deleted", changes: { comment_id: posted.id } });
   });
 
   test("activity lists changes newest first", async () => {

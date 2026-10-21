@@ -86,6 +86,7 @@ export const moveTaskSchema = z
   .refine(oneTarget, ONE_TARGET);
 
 export const createCommentSchema = z.object({ body: z.string().trim().min(1).max(20_000) }).strict();
+export const updateCommentSchema = createCommentSchema;
 
 export const taskListFilters = z.object({
   status: z

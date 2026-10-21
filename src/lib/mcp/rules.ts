@@ -24,6 +24,7 @@ export const AGENT_TOOLS: { name: string; does: string }[] = [
   { name: "update_task", does: "Edit a task's fields, epic, labels or assignee." },
   { name: "move_task", does: "Move a task to another column (or a status's column) and its place in the column." },
   { name: "add_comment", does: "Comment on a task (Markdown)." },
+  { name: "edit_comment", does: "Fix one of its own comments. Agents can't delete comments." },
   { name: "list_epics", does: "A project's epics with progress." },
   { name: "create_epic", does: "A new epic." },
   { name: "update_epic", does: "Edit an epic's title, description, status or target date." },
