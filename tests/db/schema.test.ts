@@ -513,6 +513,83 @@ describe("labels", () => {
   });
 });
 
+describe("comments", () => {
+  type Claims = { sub: string; agent_id?: string; api_key_id?: string };
+
+  const addComment = (claims: Claims, taskId: string, body: string) =>
+    as(db, claims, (tx) =>
+      one<{ id: string }>(tx, "insert into comment (task_id, body) values ($1, $2) returning id", [taskId, body]),
+    );
+  const edit = (claims: Claims, id: string, body: string) =>
+    as(db, claims, async (tx) => (await tx.query("update comment set body = $2 where id = $1", [id, body])).affectedRows);
+  const remove = (claims: Claims, id: string) =>
+    as(db, claims, async (tx) => (await tx.query("delete from comment where id = $1", [id])).affectedRows);
+
+  async function scene() {
+    const { userId, projectId } = await setup();
+    const agent = await createAgent(userId);
+    const task = await createTask(userId, projectId);
+    const mine = await addComment({ sub: userId }, task.id, "From me");
+    const agents = await addComment(agent, task.id, "From the agent");
+    return { userId, agent, task, mine, agents };
+  }
+
+  test("only the author can edit, and edits bump updated_at", async () => {
+    const { userId, agent, mine, agents } = await scene();
+    const outsider = await setup();
+
+    expect(await edit({ sub: userId }, agents.id, "Hijacked")).toBe(0);
+    expect(await edit(agent, mine.id, "Hijacked")).toBe(0);
+    expect(await edit({ sub: outsider.userId }, mine.id, "Hijacked")).toBe(0);
+
+    expect(await edit({ sub: userId }, mine.id, "From me, edited")).toBe(1);
+    expect(await edit(agent, agents.id, "From the agent, edited")).toBe(1);
+
+    const rows = await as(db, { sub: userId }, async (tx) =>
+      (await tx.query<{ body: string; edited: boolean }>("select body, updated_at > created_at as edited from comment order by created_at")).rows,
+    );
+    expect(rows).toEqual([
+      { body: "From me, edited", edited: true },
+      { body: "From the agent, edited", edited: true },
+    ]);
+  });
+
+  test("cannot change anything but the body", async () => {
+    const { userId, mine } = await scene();
+    await expect(
+      as(db, { sub: userId }, (tx) => tx.query("update comment set author_user_id = null where id = $1", [mine.id])),
+    ).rejects.toThrow(/permission denied/);
+  });
+
+  test("people delete their own and agents' comments; agents delete none", async () => {
+    const { userId, agent, mine, agents } = await scene();
+    const outsider = await setup();
+
+    expect(await remove(agent, agents.id)).toBe(0);
+    expect(await remove(agent, mine.id)).toBe(0);
+    expect(await remove({ sub: outsider.userId }, mine.id)).toBe(0);
+
+    expect(await remove({ sub: userId }, agents.id)).toBe(1);
+    expect(await remove({ sub: userId }, mine.id)).toBe(1);
+  });
+
+  test("edits and deletions are logged on the task, without the text", async () => {
+    const { userId, task, mine } = await scene();
+    await edit({ sub: userId }, mine.id, "From me"); // unchanged: not logged
+    await edit({ sub: userId }, mine.id, "Secret: hunter2");
+    await remove({ sub: userId }, mine.id);
+
+    const log = await as(db, { sub: userId }, async (tx) =>
+      (await tx.query<{ action: string; changes: unknown }>(
+        "select action, changes from activity_log where entity_type = 'task' and entity_id = $1 order by seq",
+        [task.id],
+      )).rows,
+    );
+    expect(log.map((e) => e.action)).toEqual(["created", "commented", "commented", "comment_edited", "comment_deleted"]);
+    expect(log.slice(3).map((e) => e.changes)).toEqual([{ comment_id: mine.id }, { comment_id: mine.id }]);
+  });
+});
+
 describe("agents", () => {
   test("act with their owner's access and are recorded as the comment author", async () => {
     const { userId, projectId } = await setup();

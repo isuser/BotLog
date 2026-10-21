@@ -10,6 +10,7 @@ import * as agents from "@/app/api/v1/agents/route";
 import * as mcpRoute from "@/app/api/mcp/route";
 import * as projectTasks from "@/app/api/v1/projects/[id]/tasks/route";
 import * as projects from "@/app/api/v1/projects/route";
+import * as taskComments from "@/app/api/v1/tasks/[id]/comments/route";
 import * as taskRoute from "@/app/api/v1/tasks/[id]/route";
 import { AGENT_TOOLS } from "@/lib/mcp/rules";
 import { call, createTestUser, deleteTestUsers, signingKeyIsLive, type TestUser } from "./harness";
@@ -102,6 +103,7 @@ describe.skipIf(!keyLive)("tools", () => {
       "create_epic",
       "create_label",
       "create_task",
+      "edit_comment",
       "get_task",
       "list_columns",
       "list_epics",
@@ -154,6 +156,18 @@ describe.skipIf(!keyLive)("tools", () => {
     const after = await tool<{ data: { comments: { body: string }[]; recent_activity: { action: string; actor: { type: string } }[] } }>("get_task", { id: task.id });
     expect(after.data.comments.map((c) => c.body)).toEqual(["Done: wrote the docs."]);
     expect(after.data.recent_activity[0]).toMatchObject({ action: "moved", actor: { type: "ai" } });
+  });
+
+  test("edit_comment fixes the agent's own comments only", async () => {
+    const task = (await tool<{ data: Task }>("create_task", { project: PROJECT, title: "Edit a comment" })).data;
+    const own = (await tool<{ data: { id: string } }>("add_comment", { id: task.short_id, body: "Dnoe" })).data;
+    const edited = await tool<{ data: { body: string; edited_at: string | null; can_edit: boolean; can_delete: boolean } }>("edit_comment", { comment_id: own.id, body: "Done" });
+    expect(edited.data).toMatchObject({ body: "Done", can_edit: true, can_delete: false });
+    expect(edited.data.edited_at).not.toBeNull();
+
+    const human = await call(taskComments.POST, { method: "POST", params: { id: task.id }, token: alice.token, body: { body: "Thanks" } });
+    const denied = await tool<{ status: number }>("edit_comment", { comment_id: human.body.data.id, body: "Rewritten" });
+    expect(denied).toMatchObject({ isError: true, status: 403 });
   });
 
   test("stale versions come back as a 409 conflict tool error", async () => {

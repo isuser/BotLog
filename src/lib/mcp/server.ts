@@ -1,6 +1,7 @@
 import "server-only";
 import { McpServer, type CallToolResult } from "@modelcontextprotocol/server";
 import { z } from "zod";
+import * as commentRoute from "@/app/api/v1/comments/[id]/route";
 import * as epicRoute from "@/app/api/v1/epics/[id]/route";
 import * as meTasks from "@/app/api/v1/me/tasks/route";
 import * as projectColumns from "@/app/api/v1/projects/[id]/columns/route";
@@ -376,6 +377,19 @@ export function createBotlogServer({ apiKey, agentId }: { apiKey: string; agentI
     },
     ({ id, body }) =>
       run(() => callApi(taskComments.POST, apiKey, { method: "POST", params: { id }, body: { body } })),
+  );
+
+  server.registerTool(
+    "edit_comment",
+    {
+      description: "Replace the text of one of your own comments. Comment IDs come from get_task. Markdown is supported.",
+      inputSchema: z.object({
+        comment_id: z.string().min(1).describe("Comment UUID, from get_task"),
+        body: z.string().min(1).max(20_000),
+      }),
+    },
+    ({ comment_id, body }) =>
+      run(() => callApi(commentRoute.PATCH, apiKey, { method: "PATCH", params: { id: comment_id }, body: { body } })),
   );
 
   return server;

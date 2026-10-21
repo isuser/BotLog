@@ -33,7 +33,7 @@ const FAQ: { q: string; a: React.ReactNode }[] = [
   },
   {
     q: "Can an agent delete or archive my work?",
-    a: "Tasks, epics and comments are never deleted, by anyone: they can only be archived, and agents' default rules say never to archive unless asked. Through the API an agent can do what you can in a project (it acts as you), including deleting a label, but it can't manage agents, API keys, your profile or the workspace. Every change is in the task's activity under the agent's name.",
+    a: "Tasks and epics are never deleted, by anyone: they can only be archived, and agents' default rules say never to archive unless asked. Agents can edit their own comments but can't delete any; only people delete comments. Through the API an agent can do what you can in a project (it acts as you), including deleting a label, but it can't manage agents, API keys, your profile or the workspace. Every change is in the task's activity under the agent's name.",
   },
   {
     q: "An agent's key leaked. What do I do?",
@@ -142,7 +142,8 @@ export default function HelpPage() {
             <li>
               <strong>Task panel:</strong> column, priority, type, assignee, due date, epic and labels, a Markdown
               description, comments and activity (the latest changes; load older ones as you need them). It has its
-              own link you can share.
+              own link you can share. Hover a comment to edit it (your own only) or delete it (yours or an
+              agent&apos;s); edited comments say so, and the activity records each edit and deletion, not the text.
             </li>
             <li>
               <strong>List:</strong> every active task, backlog and older Done ones included, as a table you can sort
@@ -281,6 +282,11 @@ export default function HelpPage() {
               or a <code>status</code> (which picks that status&apos;s column, and leaves a task alone if it already has
               that status). A project&apos;s columns are at <code>/projects/:key/columns</code>; adding, editing and
               deleting them needs a person, not an agent key.
+            </li>
+            <li>
+              Comments are at <code>/tasks/:id/comments</code>; edit one with <code>PATCH /comments/:id</code> and
+              delete it with <code>DELETE /comments/:id</code>. Each comment has <code>can_edit</code> and{" "}
+              <code>can_delete</code> for the caller: only the author edits, and agent keys can&apos;t delete.
             </li>
             <li>
               Errors are always <code>{'{ "error": { "code", "message" } }'}</code>. Lists page with{" "}
