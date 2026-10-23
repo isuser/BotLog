@@ -199,6 +199,64 @@ export type Database = {
           },
         ]
       }
+      attachment: {
+        Row: {
+          content_type: string
+          created_at: string
+          file_name: string
+          id: string
+          project_id: string
+          size: number
+          task_id: string
+          uploader_agent_id: string | null
+          uploader_user_id: string | null
+        }
+        Insert: {
+          content_type: string
+          created_at?: string
+          file_name: string
+          id?: string
+          project_id: string
+          size: number
+          task_id: string
+          uploader_agent_id?: string | null
+          uploader_user_id?: string | null
+        }
+        Update: {
+          content_type?: string
+          created_at?: string
+          file_name?: string
+          id?: string
+          project_id?: string
+          size?: number
+          task_id?: string
+          uploader_agent_id?: string | null
+          uploader_user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attachment_task_id_project_id_fkey"
+            columns: ["task_id", "project_id"]
+            isOneToOne: false
+            referencedRelation: "task"
+            referencedColumns: ["id", "project_id"]
+          },
+          {
+            foreignKeyName: "attachment_uploader_agent_id_fkey"
+            columns: ["uploader_agent_id"]
+            isOneToOne: false
+            referencedRelation: "agent"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attachment_uploader_user_id_fkey"
+            columns: ["uploader_user_id"]
+            isOneToOne: false
+            referencedRelation: "profile"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       board_column: {
         Row: {
           counts_as: Database["public"]["Enums"]["task_status"]
