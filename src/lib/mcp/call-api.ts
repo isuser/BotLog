@@ -14,6 +14,13 @@ export class McpApiError extends Error {
   }
 }
 
+type CallOptions<P> = {
+  method?: string;
+  params?: P;
+  query?: Record<string, string | number | undefined>;
+  body?: unknown;
+};
+
 /**
  * Calls a REST API route handler in-process as the agent behind `apiKey`, so MCP tools go
  * through exactly the same auth, validation, RLS and version checks as any API client.
@@ -21,18 +28,20 @@ export class McpApiError extends Error {
 export async function callApi<P extends Params>(
   handler: RouteHandler<P>,
   apiKey: string,
-  {
-    method = "GET",
-    params = {} as P,
-    query = {},
-    body,
-  }: {
-    method?: string;
-    params?: P;
-    query?: Record<string, string | number | undefined>;
-    body?: unknown;
-  } = {},
+  options: CallOptions<P> = {},
 ): Promise<unknown> {
+  const response = await callApiResponse(handler, apiKey, options);
+  const json = await response.json().catch(() => null);
+  if (!response.ok) throw apiError(response.status, json);
+  return json;
+}
+
+/** Like `callApi`, for routes that don't answer with JSON (a redirect): returns the response. Errors still throw. */
+export async function callApiResponse<P extends Params>(
+  handler: RouteHandler<P>,
+  apiKey: string,
+  { method = "GET", params = {} as P, query = {}, body }: CallOptions<P> = {},
+): Promise<Response> {
   const url = new URL("http://botlog.internal/api/v1");
   for (const [key, value] of Object.entries(query)) {
     if (value !== undefined) url.searchParams.set(key, String(value));
@@ -47,12 +56,13 @@ export async function callApi<P extends Params>(
   });
 
   const response = await handler(request, { params: Promise.resolve(params) });
-  const json = await response.json().catch(() => null);
-  if (!response.ok) {
-    throw new McpApiError(
-      response.status,
-      json?.error ? json : { error: { code: "internal", message: "Something went wrong." } },
-    );
-  }
-  return json;
+  if (response.status >= 400) throw apiError(response.status, await response.json().catch(() => null));
+  return response;
+}
+
+function apiError(status: number, json: { error?: unknown } | null) {
+  return new McpApiError(
+    status,
+    json?.error ? (json as McpApiError["body"]) : { error: { code: "internal", message: "Something went wrong." } },
+  );
 }

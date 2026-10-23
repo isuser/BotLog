@@ -10,10 +10,11 @@ import * as agents from "@/app/api/v1/agents/route";
 import * as mcpRoute from "@/app/api/mcp/route";
 import * as projectTasks from "@/app/api/v1/projects/[id]/tasks/route";
 import * as projects from "@/app/api/v1/projects/route";
+import * as taskAttachments from "@/app/api/v1/tasks/[id]/attachments/route";
 import * as taskComments from "@/app/api/v1/tasks/[id]/comments/route";
 import * as taskRoute from "@/app/api/v1/tasks/[id]/route";
 import { AGENT_TOOLS } from "@/lib/mcp/rules";
-import { call, createTestUser, deleteTestUsers, signingKeyIsLive, type TestUser } from "./harness";
+import { adminClient, call, createTestUser, deleteTestUsers, signingKeyIsLive, type TestUser } from "./harness";
 
 const keyLive = await signingKeyIsLive();
 const MCP_URL = "http://localhost/api/mcp";
@@ -104,6 +105,7 @@ describe.skipIf(!keyLive)("tools", () => {
       "create_label",
       "create_task",
       "edit_comment",
+      "get_attachment",
       "get_task",
       "list_columns",
       "list_epics",
@@ -168,6 +170,34 @@ describe.skipIf(!keyLive)("tools", () => {
     const human = await call(taskComments.POST, { method: "POST", params: { id: task.id }, token: alice.token, body: { body: "Thanks" } });
     const denied = await tool<{ status: number }>("edit_comment", { comment_id: human.body.data.id, body: "Rewritten" });
     expect(denied).toMatchObject({ isError: true, status: 403 });
+  });
+
+  test("get_attachment shows the agent an image from a task, by link or id", async () => {
+    const task = (await tool<{ data: Task }>("create_task", { project: PROJECT, title: "Look at this" })).data;
+    const gif = Buffer.from("R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==", "base64");
+    const started = await call(taskAttachments.POST, {
+      method: "POST",
+      params: { id: task.id },
+      token: alice.token,
+      body: { file_name: "dot.gif", content_type: "image/gif", size: gif.length },
+    });
+    expect(started.status, JSON.stringify(started.body)).toBe(201);
+    const put = await fetch(started.body.upload_url, { method: "PUT", headers: { "content-type": "image/gif" }, body: gif });
+    expect(put.status).toBe(200);
+    const { data: project } = await alice.db.from("project").select("id").eq("key", PROJECT).single();
+
+    try {
+      for (const id of [started.body.data.url, started.body.data.id]) {
+        const result = await client.callTool({ name: "get_attachment", arguments: { id } });
+        expect(result.isError).toBeFalsy();
+        const image = (result.content as { type: string; data?: string; mimeType?: string }[]).find((c) => c.type === "image");
+        expect(image).toMatchObject({ mimeType: "image/gif", data: gif.toString("base64") });
+      }
+      const missing = await tool<{ status: number }>("get_attachment", { id: crypto.randomUUID() });
+      expect(missing).toMatchObject({ isError: true, status: 404 });
+    } finally {
+      await adminClient().storage.from("attachments").remove([`${project!.id}/${started.body.data.id}`]);
+    }
   });
 
   test("stale versions come back as a 409 conflict tool error", async () => {
