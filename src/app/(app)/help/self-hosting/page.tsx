@@ -14,6 +14,7 @@ const SECTIONS = [
   { id: "https", title: "5. HTTPS" },
   { id: "google", title: "Google sign-in" },
   { id: "people", title: "Adding people" },
+  { id: "cleanup", title: "Image cleanup" },
   { id: "backups", title: "Backups" },
   { id: "updates", title: "Updates" },
   { id: "troubleshooting", title: "Troubleshooting" },
@@ -68,6 +69,16 @@ const ENV: { name: string; required: boolean; what: React.ReactNode }[] = [
   },
   { name: "RATE_LIMIT_API_KEY_PER_MINUTE", required: false, what: "Requests a minute per agent API key. Default 120." },
   { name: "RATE_LIMIT_USER_PER_MINUTE", required: false, what: "Requests a minute per person. Default 600." },
+  {
+    name: "CRON_SECRET",
+    required: false,
+    what: (
+      <>
+        Turns on the daily image cleanup (see <a href="#cleanup">Image cleanup</a>). Any long random string, like the
+        output of <code>openssl rand -hex 32</code>.
+      </>
+    ),
+  },
 ];
 
 /** How to run your own Botlog: Supabase setup, environment, Vercel or Docker, HTTPS, backups and updates. */
@@ -294,6 +305,31 @@ node --env-file=.env .next/standalone/server.js`}
               Without it, set a password and send it to them privately.
             </li>
           </ol>
+
+          <h2 id="cleanup">Image cleanup</h2>
+          <p>
+            Images are linked from descriptions and comments, so removing one from the text, or deleting a comment,
+            leaves its file in Storage. A cleanup deletes images that no description or comment links to any more
+            and that were uploaded over a day ago (archived tasks keep theirs; links in epic and project descriptions
+            count too). It runs when something calls{" "}
+            <code>/api/cron/attachment-cleanup</code> with <code>CRON_SECRET</code>; without the variable it&apos;s
+            off and files just take up space.
+          </p>
+          <ul>
+            <li>
+              <strong>Vercel:</strong> add <code>CRON_SECRET</code> to the project&apos;s environment variables and
+              redeploy. <code>vercel.json</code> already schedules it every day at 04:00 UTC, and Vercel sends the
+              secret.
+            </li>
+            <li>
+              <strong>Docker or Node:</strong> set <code>CRON_SECRET</code> and schedule the request yourself, for
+              example with a crontab line on the host:
+            </li>
+          </ul>
+          <CopyBlock
+            label="cleanup crontab line"
+            text={`0 4 * * * curl -fsS -H "Authorization: Bearer your-cron-secret" https://botlog.example.com/api/cron/attachment-cleanup`}
+          />
 
           <h2 id="backups">Backups</h2>
           <ul>

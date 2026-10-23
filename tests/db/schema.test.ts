@@ -1134,3 +1134,94 @@ describe("attachments", () => {
     expect(await one(db, "select count(*)::int as n from attachment where project_id = $1", [projectId])).toEqual({ n: 0 });
   });
 });
+
+describe("attachment orphans", () => {
+  const orphans = () =>
+    db.transaction(async (tx) => {
+      await tx.exec("set local role service_role");
+      return (await tx.query<{ attachment_id: string | null; path: string }>("select * from attachment_orphans()")).rows;
+    });
+
+  async function image(sub: string, taskId: string, ageHours = 48) {
+    const row = await as(db, { sub }, (tx) =>
+      one<{ id: string; project_id: string }>(
+        tx,
+        "insert into attachment (task_id, file_name, content_type, size) values ($1, 'x.jpg', 'image/jpeg', 1) returning id, project_id",
+        [taskId],
+      ),
+    );
+    const path = `${row.project_id}/${row.id}`;
+    await db.query("insert into storage.objects (bucket_id, name) values ('attachments', $1)", [path]);
+    await db.query("update attachment set created_at = now() - make_interval(hours => $2) where id = $1", [row.id, ageHours]);
+    await db.query("update storage.objects set created_at = now() - make_interval(hours => $2) where name = $1", [path, ageHours]);
+    return { ...row, path, link: `![x](/api/v1/attachments/${row.id})` };
+  }
+
+  test("are day-old images no description or comment links to, and files without a row", async () => {
+    const { userId, projectId } = await setup();
+    const task = await createTask(userId, projectId);
+    const inDescription = await image(userId, task.id);
+    const inComment = await image(userId, task.id);
+    const inArchivedTask = await image(userId, task.id);
+    const unlinked = await image(userId, task.id);
+    await image(userId, task.id, 1); // unlinked, but under a day old
+    const archived = await createTask(userId, projectId, "Archived");
+
+    await as(db, { sub: userId }, async (tx) => {
+      // Upper case still counts as a link.
+      await tx.query("update task set description = $2 where id = $1", [task.id, `See ${inDescription.link.replace(inDescription.id, inDescription.id.toUpperCase())}`]);
+      await tx.query("insert into comment (task_id, body) values ($1, $2)", [task.id, `Look: ${inComment.link}`]);
+      await tx.query("update task set description = $2, archived_at = now() where id = $1", [archived.id, inArchivedTask.link]);
+    });
+    const leftover = `${projectId}/${crypto.randomUUID()}`;
+    await db.query("insert into storage.objects (bucket_id, name, created_at) values ('attachments', $1, now() - interval '2 days')", [leftover]);
+
+    const found = (await orphans()).filter((o) => o.path.startsWith(projectId));
+    expect(found).toEqual(
+      expect.arrayContaining([
+        { attachment_id: unlinked.id, path: unlinked.path },
+        { attachment_id: null, path: leftover },
+      ]),
+    );
+    expect(found).toHaveLength(2);
+  });
+
+  test("links from epic and project descriptions keep an image", async () => {
+    const { userId, projectId } = await setup();
+    const task = await createTask(userId, projectId);
+    const inEpic = await image(userId, task.id);
+    const inProject = await image(userId, task.id);
+    await as(db, { sub: userId }, async (tx) => {
+      await tx.query("insert into epic (project_id, title, description) values ($1, 'Epic', $2)", [projectId, inEpic.link]);
+      await tx.query("update project set description = $2 where id = $1", [projectId, inProject.link]);
+    });
+    const ids = (await orphans()).map((o) => o.attachment_id);
+    expect(ids).not.toContain(inEpic.id);
+    expect(ids).not.toContain(inProject.id);
+  });
+
+  test("a deleted comment's images become orphans", async () => {
+    const { userId, projectId } = await setup();
+    const task = await createTask(userId, projectId);
+    const img = await image(userId, task.id);
+    const comment = await as(db, { sub: userId }, (tx) =>
+      one<{ id: string }>(tx, "insert into comment (task_id, body) values ($1, $2) returning id", [task.id, img.link]),
+    );
+    expect((await orphans()).map((o) => o.attachment_id)).not.toContain(img.id);
+    await as(db, { sub: userId }, (tx) => tx.query("delete from comment where id = $1", [comment.id]));
+    expect((await orphans()).map((o) => o.attachment_id)).toContain(img.id);
+  });
+
+  test("only the service role can list them", async () => {
+    const { userId } = await setup();
+    await expect(as(db, { sub: userId }, (tx) => tx.query("select * from attachment_orphans()"))).rejects.toThrow(
+      /permission denied/,
+    );
+    await expect(
+      db.transaction(async (tx) => {
+        await tx.exec("set local role anon");
+        await tx.query("select * from attachment_orphans()");
+      }),
+    ).rejects.toThrow(/permission denied/);
+  });
+});

@@ -1,6 +1,7 @@
 import "server-only";
 import { McpServer, type CallToolResult } from "@modelcontextprotocol/server";
 import { z } from "zod";
+import * as attachmentRoute from "@/app/api/v1/attachments/[id]/route";
 import * as commentRoute from "@/app/api/v1/comments/[id]/route";
 import * as epicRoute from "@/app/api/v1/epics/[id]/route";
 import * as meTasks from "@/app/api/v1/me/tasks/route";
@@ -13,8 +14,10 @@ import * as taskActivity from "@/app/api/v1/tasks/[id]/activity/route";
 import * as taskComments from "@/app/api/v1/tasks/[id]/comments/route";
 import * as taskMove from "@/app/api/v1/tasks/[id]/move/route";
 import * as taskRoute from "@/app/api/v1/tasks/[id]/route";
+import { ATTACHMENT_TYPES } from "@/lib/api/attachments";
 import { EPIC_STATUSES, TASK_PRIORITIES, TASK_STATUSES, TASK_TYPES } from "@/lib/api/schemas";
-import { callApi, McpApiError } from "./call-api";
+import { supabaseUrl } from "@/lib/supabase/config";
+import { callApi, callApiResponse, McpApiError } from "./call-api";
 import { AGENT_RULES } from "./rules";
 
 /** The default agent rules, sent to every AI client. The user's own prompt can override them. */
@@ -392,6 +395,46 @@ export function createBotlogServer({ apiKey, agentId }: { apiKey: string; agentI
       run(() => callApi(commentRoute.PATCH, apiKey, { method: "PATCH", params: { id: comment_id }, body: { body } })),
   );
 
+  server.registerTool(
+    "get_attachment",
+    {
+      description:
+        "Look at an image from a task's description or comments. Images there are Markdown links like ![name](/api/v1/attachments/<id>); pass the link or the id.",
+      inputSchema: z.object({
+        id: z.string().min(1).describe("The image link (/api/v1/attachments/<id>) or the attachment UUID"),
+      }),
+      annotations: { readOnlyHint: true },
+    },
+    async ({ id }) => {
+      try {
+        const attachmentId = id.trim().match(/([0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12})\)?$/i)?.[1] ?? id;
+        // The API checks access and redirects to a short-lived signed Storage URL.
+        const redirect = await callApiResponse(attachmentRoute.GET, apiKey, { params: { id: attachmentId } });
+        const location = redirect.headers.get("location");
+        // Only ever fetch from our own Supabase project.
+        // The location is a signed URL, so it stays out of error messages and logs.
+        if (!location || new URL(location).origin !== new URL(supabaseUrl).origin) {
+          throw new Error("The attachment redirected somewhere other than Storage");
+        }
+        const image = await fetch(location, { redirect: "error" });
+        if (!image.ok) throw new Error(`Storage answered ${image.status}`);
+        const mimeType = image.headers.get("content-type")?.split(";")[0].trim() ?? "";
+        if (!(ATTACHMENT_TYPES as readonly string[]).includes(mimeType)) {
+          throw new Error(`Storage served an attachment as ${mimeType || "no type"}`);
+        }
+        const data = Buffer.from(await image.arrayBuffer()).toString("base64");
+        return {
+          content: [
+            { type: "text", text: JSON.stringify({ data: { id: attachmentId.toLowerCase(), content_type: mimeType } }) },
+            { type: "image", data, mimeType },
+          ],
+        };
+      } catch (error) {
+        return toolError(error);
+      }
+    },
+  );
+
   return server;
 }
 
@@ -401,17 +444,22 @@ async function run(fn: () => Promise<unknown>): Promise<CallToolResult> {
     const result = await fn();
     return { content: [{ type: "text", text: JSON.stringify(result) }] };
   } catch (error) {
-    if (!(error instanceof McpApiError)) {
-      // Don't hand internal messages to the client; log them like the REST API does.
-      console.error("Unhandled MCP tool error", error);
-      return {
-        isError: true,
-        content: [{ type: "text", text: JSON.stringify({ status: 500, error: { code: "internal", message: "Something went wrong." } }) }],
-      };
-    }
+    return toolError(error);
+  }
+}
+
+/** An API error as a tool error in the API's `{ error }` shape; anything else as a generic one. */
+function toolError(error: unknown): CallToolResult {
+  if (!(error instanceof McpApiError)) {
+    // Don't hand internal messages to the client; log them like the REST API does.
+    console.error("Unhandled MCP tool error", error);
     return {
       isError: true,
-      content: [{ type: "text", text: JSON.stringify({ status: error.status, ...error.body }) }],
+      content: [{ type: "text", text: JSON.stringify({ status: 500, error: { code: "internal", message: "Something went wrong." } }) }],
     };
   }
+  return {
+    isError: true,
+    content: [{ type: "text", text: JSON.stringify({ status: error.status, ...error.body }) }],
+  };
 }

@@ -681,6 +681,13 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      attachment_orphans: {
+        Args: { max_rows?: number }
+        Returns: {
+          attachment_id: string
+          path: string
+        }[]
+      }
       column_for_status: {
         Args: {
           p_project_id: string

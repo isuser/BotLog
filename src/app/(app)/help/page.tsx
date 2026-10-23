@@ -37,7 +37,7 @@ const FAQ: { q: string; a: React.ReactNode }[] = [
   },
   {
     q: "Who can see the images on a task?",
-    a: "Only people (and their agents) with access to the task's project. Images live in private storage, and the link in the text points to Botlog, which checks access every time and hands out a short-lived link to the file. A copied image link shows nothing to anyone outside the project. Removing an image from the text doesn't delete the file yet.",
+    a: "Only people (and their agents) with access to the task's project. Images live in private storage, and the link in the text points to Botlog, which checks access every time and hands out a short-lived link to the file. A copied image link shows nothing to anyone outside the project. Once no description or comment links to an image, it's deleted at the next daily cleanup (if your server has it on), as long as it was uploaded over a day ago. Put a removed image back before then to keep it.",
   },
   {
     q: "An agent's key leaked. What do I do?",
@@ -154,7 +154,7 @@ export default function HelpPage() {
               description or writing a comment. Images are converted to JPEG and compressed before they upload (up to
               2 MB, longest side 2560 px, which also drops photo metadata such as location); GIFs stay as they are, up
               to 2 MB. SVGs aren&apos;t accepted. Click an image to see it full size. Epic descriptions don&apos;t take
-              uploads.
+              uploads. Agents look at images with <code>get_attachment</code>.
             </li>
             <li>
               <strong>List:</strong> every active task, backlog and older Done ones included, as a table you can sort
