@@ -9,6 +9,7 @@ import * as agentKeys from "@/app/api/v1/agents/[id]/api-keys/route";
 import * as agentRestore from "@/app/api/v1/agents/[id]/restore/route";
 import * as agentRoute from "@/app/api/v1/agents/[id]/route";
 import * as agents from "@/app/api/v1/agents/route";
+import * as attachmentRoute from "@/app/api/v1/attachments/[id]/route";
 import * as columnRoute from "@/app/api/v1/columns/[id]/route";
 import * as epicRestore from "@/app/api/v1/epics/[id]/restore/route";
 import * as commentRoute from "@/app/api/v1/comments/[id]/route";
@@ -24,13 +25,14 @@ import * as projectRoute from "@/app/api/v1/projects/[id]/route";
 import * as projectTasks from "@/app/api/v1/projects/[id]/tasks/route";
 import * as projects from "@/app/api/v1/projects/route";
 import * as taskActivity from "@/app/api/v1/tasks/[id]/activity/route";
+import * as taskAttachments from "@/app/api/v1/tasks/[id]/attachments/route";
 import * as taskComments from "@/app/api/v1/tasks/[id]/comments/route";
 import * as taskMove from "@/app/api/v1/tasks/[id]/move/route";
 import * as taskRestore from "@/app/api/v1/tasks/[id]/restore/route";
 import * as taskRoute from "@/app/api/v1/tasks/[id]/route";
 import * as tasksRoute from "@/app/api/v1/tasks/route";
 import { generateApiKey } from "@/lib/api/api-keys";
-import { call, createTestUser, deleteTestUsers, signingKeyIsLive, type TestUser } from "./harness";
+import { adminClient, call, createTestUser, deleteTestUsers, signingKeyIsLive, type TestUser } from "./harness";
 
 const keyLive = await signingKeyIsLive();
 
@@ -576,6 +578,109 @@ describe("export", () => {
   });
 });
 
+describe("attachments", () => {
+  const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0xff, 0xd9]);
+  const uploaded: string[] = [];
+
+  /** Starts an upload and PUTs the bytes to the signed URL, as the web app does. */
+  async function uploadImage(taskId: string, token = alice.token, contentType = "image/jpeg") {
+    const res = await call(taskAttachments.POST, {
+      method: "POST",
+      params: { id: taskId },
+      token,
+      body: { file_name: "screenshot.jpg", content_type: contentType, size: JPEG.length },
+    });
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+    const put = await fetch(res.body.upload_url, { method: "PUT", headers: { "content-type": contentType }, body: JPEG });
+    expect(put.status, await put.clone().text()).toBe(200);
+    return res.body.data as { id: string; url: string; markdown: string; task_id: string };
+  }
+
+  afterAll(async () => {
+    // Deleting the test users doesn't remove Storage files.
+    if (uploaded.length) await adminClient().storage.from("attachments").remove(uploaded);
+  });
+
+  test("an image uploads to a signed URL and is served through the app's link", async () => {
+    const task = await createTask({ title: "With a screenshot" });
+    const attachment = await uploadImage(task.short_id);
+    const { data: project } = await alice.db.from("project").select("id").eq("key", PROJECT).single();
+    uploaded.push(`${project!.id}/${attachment.id}`);
+
+    expect(attachment).toMatchObject({
+      task_id: task.id,
+      url: `/api/v1/attachments/${attachment.id}`,
+      markdown: `![screenshot.jpg](/api/v1/attachments/${attachment.id})`,
+    });
+
+    const res = await call(attachmentRoute.GET, { params: { id: attachment.id }, token: alice.token });
+    expect(res.status).toBe(302);
+    expect(res.headers.get("cache-control")).toMatch(/^private/);
+    const image = await fetch(res.headers.get("location")!);
+    expect(image.status).toBe(200);
+    expect(new Uint8Array(await image.arrayBuffer())).toEqual(JPEG);
+
+    const exported = await call(projectExport.GET, { params: { id: PROJECT }, token: alice.token });
+    expect(exported.body.attachments).toContainEqual(expect.objectContaining({ id: attachment.id, task_id: task.id, size: JPEG.length }));
+  });
+
+  test("another workspace gets a 404, for the link and the upload", async () => {
+    const task = await createTask({ title: "Private screenshot" });
+    const attachment = await uploadImage(task.id);
+    const { data: project } = await alice.db.from("project").select("id").eq("key", PROJECT).single();
+    uploaded.push(`${project!.id}/${attachment.id}`);
+
+    expect((await call(attachmentRoute.GET, { params: { id: attachment.id }, token: bob.token })).status).toBe(404);
+    const upload = await call(taskAttachments.POST, {
+      method: "POST",
+      params: { id: task.id },
+      token: bob.token,
+      body: { file_name: "x.jpg", content_type: "image/jpeg", size: 10 },
+    });
+    expect(upload.status).toBe(404);
+  });
+
+  test("only JPEG and GIF up to 2 MB, checked by the API and again by the bucket", async () => {
+    const task = await createTask({ title: "Wrong files" });
+    const start = (body: Record<string, unknown>) =>
+      call(taskAttachments.POST, { method: "POST", params: { id: task.id }, token: alice.token, body: { file_name: "f", ...body } });
+
+    const svg = await start({ content_type: "image/svg+xml", size: 100 });
+    expect(svg.status).toBe(400);
+    expect(svg.body.error.details[0].message).toBe("Images must be JPEG or GIF.");
+    expect((await start({ content_type: "image/png", size: 100 })).status).toBe(400);
+    const big = await start({ content_type: "image/jpeg", size: 2 * 1024 * 1024 + 1 });
+    expect(big.body.error.details[0].message).toBe("Images can be up to 2 MB.");
+
+    // Declaring a JPEG and then uploading something else is refused by Storage.
+    const declared = await start({ content_type: "image/jpeg", size: JPEG.length });
+    const put = await fetch(declared.body.upload_url, { method: "PUT", headers: { "content-type": "text/html" }, body: JPEG });
+    expect(put.ok).toBe(false);
+    expect((await call(attachmentRoute.GET, { params: { id: declared.body.data.id }, token: alice.token })).status).toBe(404);
+  });
+
+  test("an uploaded image can't be replaced, even signing directly with upsert", async () => {
+    const task = await createTask({ title: "No overwrites" });
+    const attachment = await uploadImage(task.id);
+    const { data: project } = await alice.db.from("project").select("id").eq("key", PROJECT).single();
+    const path = `${project!.id}/${attachment.id}`;
+    uploaded.push(path);
+
+    const { data: signed } = await alice.db.storage.from("attachments").createSignedUploadUrl(path, { upsert: true });
+    if (signed) {
+      await fetch(signed.signedUrl, { method: "PUT", headers: { "content-type": "image/jpeg", "x-upsert": "true" }, body: "replaced" });
+    }
+    const res = await call(attachmentRoute.GET, { params: { id: attachment.id }, token: alice.token });
+    const image = await fetch(res.headers.get("location")!);
+    expect(new Uint8Array(await image.arrayBuffer())).toEqual(JPEG);
+  });
+
+  test("a made-up or malformed id is a 404 or 400", async () => {
+    expect((await call(attachmentRoute.GET, { params: { id: crypto.randomUUID() }, token: alice.token })).status).toBe(404);
+    expect((await call(attachmentRoute.GET, { params: { id: "nope" }, token: alice.token })).status).toBe(400);
+  });
+});
+
 describe("rate limits", () => {
   test("over the limit answers 429 with Retry-After, counted per caller", async () => {
     const [carol, dave] = await Promise.all([createTestUser(), createTestUser()]);
@@ -679,6 +784,26 @@ describe.skipIf(!keyLive)("agents with API keys", () => {
     expect(add.status).toBe(403);
     const edit = await call(columnRoute.PATCH, { method: "PATCH", params: { id: inProgress.id }, token: apiKey, body: { hidden: true } });
     expect(edit.status).toBe(403);
+  });
+
+  test("can start image uploads and read images in their owner's projects", async () => {
+    const task = await createTask({ title: "Bot looks at a screenshot" });
+    const res = await call(taskAttachments.POST, {
+      method: "POST",
+      params: { id: task.id },
+      token: apiKey,
+      body: { file_name: "bot.gif", content_type: "image/gif", size: 6 },
+    });
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+    expect(res.body.data.uploader).toMatchObject({ type: "agent", id: agentId });
+    const put = await fetch(res.body.upload_url, { method: "PUT", headers: { "content-type": "image/gif" }, body: "GIF89a" });
+    expect(put.status, await put.clone().text()).toBe(200);
+    const { data: project } = await alice.db.from("project").select("id").eq("key", PROJECT).single();
+    try {
+      expect((await call(attachmentRoute.GET, { params: { id: res.body.data.id }, token: apiKey })).status).toBe(302);
+    } finally {
+      await adminClient().storage.from("attachments").remove([`${project!.id}/${res.body.data.id}`]);
+    }
   });
 
   test("can't read or change their owner's profile", async () => {

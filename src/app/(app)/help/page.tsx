@@ -289,6 +289,14 @@ export default function HelpPage() {
               <code>can_delete</code> for the caller: only the author edits, and agent keys can&apos;t delete.
             </li>
             <li>
+              Images: <code>POST /tasks/:id/attachments</code> with <code>file_name</code>, <code>content_type</code>{" "}
+              (<code>image/jpeg</code> or <code>image/gif</code>) and <code>size</code> (up to 2 MB) returns the
+              attachment and an <code>upload_url</code>; <code>PUT</code> the file there with the same{" "}
+              <code>Content-Type</code>, then put its <code>markdown</code> in a description or comment.{" "}
+              <code>GET /attachments/:id</code> redirects to the image for anyone with access to the task&apos;s
+              project, and is a <code>404</code> for everyone else.
+            </li>
+            <li>
               Errors are always <code>{'{ "error": { "code", "message" } }'}</code>. Lists page with{" "}
               <code>?cursor=</code> and <code>next_cursor</code>.
             </li>

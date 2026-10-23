@@ -310,8 +310,12 @@ pnpm exec supabase db dump --linked --data-only -f data.sql`}
           <ul>
             <li>
               <strong>Per project:</strong> a project&apos;s Settings tab has <strong>Download export</strong>: one JSON
-              file with its epics, labels, tasks and comments. Handy for keeping or moving your work; it isn&apos;t a
-              database restore.
+              file with its epics, labels, tasks, comments and a list of its images (not the image files). Handy for
+              keeping or moving your work; it isn&apos;t a database restore.
+            </li>
+            <li>
+              <strong>Images:</strong> they live in Supabase Storage (the private <code>attachments</code> bucket), which
+              database dumps don&apos;t include. Back the bucket up separately if you need the files.
             </li>
           </ul>
 

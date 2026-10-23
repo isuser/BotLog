@@ -1,6 +1,6 @@
 import type { PGlite } from "@electric-sql/pglite";
 import { beforeAll, describe, expect, test } from "vitest";
-import { as, createDb, createUser, one } from "./harness";
+import { as, createDb, createUser, one, type Claims } from "./harness";
 
 let db: PGlite;
 let counter = 0;
@@ -514,7 +514,6 @@ describe("labels", () => {
 });
 
 describe("comments", () => {
-  type Claims = { sub: string; agent_id?: string; api_key_id?: string };
 
   const addComment = (claims: Claims, taskId: string, body: string) =>
     as(db, claims, (tx) =>
@@ -1006,5 +1005,132 @@ describe("board columns", () => {
     await expect(
       update(b.userId, "update board_column set name = 'Mine' where id = $1", [aColumns[1].id]),
     ).resolves.toMatchObject({ affectedRows: 0 });
+  });
+});
+
+describe("attachments", () => {
+  const addAttachment = (claims: Claims, taskId: string, contentType = "image/jpeg", size = 1000) =>
+    as(db, claims, (tx) =>
+      one<{ id: string; project_id: string; uploader_user_id: string | null; uploader_agent_id: string | null }>(
+        tx,
+        `insert into attachment (task_id, file_name, content_type, size) values ($1, 'shot.jpg', $2, $3)
+         returning id, project_id, uploader_user_id, uploader_agent_id`,
+        [taskId, contentType, size],
+      ),
+    );
+  const upload = (claims: Claims, name: string) =>
+    as(db, claims, (tx) =>
+      tx.query("insert into storage.objects (bucket_id, name, owner) values ('attachments', $1, $2)", [name, claims.sub]),
+    );
+  const objects = (claims: Claims) =>
+    as(db, claims, async (tx) =>
+      (await tx.query<{ name: string }>("select name from storage.objects where bucket_id = 'attachments'")).rows.map((r) => r.name),
+    );
+
+  test("the bucket is private, JPEG and GIF only, up to 2 MB", async () => {
+    const bucket = await one(db, "select public, file_size_limit, allowed_mime_types from storage.buckets where id = 'attachments'");
+    expect(bucket).toEqual({ public: false, file_size_limit: 2097152, allowed_mime_types: ["image/jpeg", "image/gif"] });
+  });
+
+  test("record their task's project and the uploader, person or agent", async () => {
+    const { userId, projectId } = await setup();
+    const agent = await createAgent(userId);
+    const task = await createTask(userId, projectId);
+
+    expect(await addAttachment({ sub: userId }, task.id)).toMatchObject({
+      project_id: projectId,
+      uploader_user_id: userId,
+      uploader_agent_id: null,
+    });
+    expect(await addAttachment(agent, task.id)).toMatchObject({ uploader_user_id: null, uploader_agent_id: agent.agent_id });
+    await expect(
+      as(db, { sub: userId }, (tx) =>
+        tx.query("insert into attachment (task_id, file_name, content_type, size, uploader_user_id) values ($1, 'x', 'image/jpeg', 1, $2)", [task.id, userId]),
+      ),
+    ).rejects.toThrow(/permission denied/);
+  });
+
+  test("only JPEG and GIF up to 2 MB, and rows can't be changed", async () => {
+    const { userId, projectId } = await setup();
+    const task = await createTask(userId, projectId);
+    await expect(addAttachment({ sub: userId }, task.id, "image/svg+xml")).rejects.toThrow(/check constraint/);
+    await expect(addAttachment({ sub: userId }, task.id, "image/png")).rejects.toThrow(/check constraint/);
+    await expect(addAttachment({ sub: userId }, task.id, "image/jpeg", 2097153)).rejects.toThrow(/check constraint/);
+    await expect(addAttachment({ sub: userId }, task.id, "image/gif", 2097152)).resolves.toBeDefined();
+
+    const { id } = await addAttachment({ sub: userId }, task.id);
+    await expect(
+      as(db, { sub: userId }, (tx) => tx.query("update attachment set size = 1 where id = $1", [id])),
+    ).rejects.toThrow(/permission denied/);
+    await expect(
+      as(db, { sub: userId }, (tx) => tx.query("delete from attachment where id = $1", [id])),
+    ).rejects.toThrow(/permission denied/);
+  });
+
+  test("stay inside their workspace", async () => {
+    const a = await setup();
+    const b = await setup();
+    const task = await createTask(a.userId, a.projectId);
+    await addAttachment({ sub: a.userId }, task.id);
+
+    expect((await as(db, { sub: b.userId }, (tx) => tx.query("select id from attachment"))).rows).toEqual([]);
+    await expect(addAttachment({ sub: b.userId }, task.id)).rejects.toThrow(/task not found|row-level security/);
+  });
+
+  test("files go only at an attachment's path, once, and only its workspace reads them", async () => {
+    const { userId, projectId } = await setup();
+    const agent = await createAgent(userId);
+    const outsider = await setup();
+    const task = await createTask(userId, projectId);
+    const attachment = await addAttachment({ sub: userId }, task.id);
+    const path = `${projectId}/${attachment.id}`;
+
+    // Not at a made-up path, nor at someone else's attachment.
+    await expect(upload({ sub: userId }, `${projectId}/${crypto.randomUUID()}`)).rejects.toThrow(/row-level security/);
+    await expect(upload({ sub: outsider.userId }, path)).rejects.toThrow(/row-level security/);
+
+    await upload({ sub: userId }, path);
+    await expect(upload({ sub: userId }, path)).rejects.toThrow(/duplicate key/);
+    await expect(
+      as(db, { sub: userId }, (tx) => tx.query("update storage.objects set name = 'x' where name = $1", [path])),
+    ).resolves.toMatchObject({ affectedRows: 0 });
+    await expect(
+      as(db, { sub: userId }, (tx) => tx.query("delete from storage.objects where name = $1", [path])),
+    ).resolves.toMatchObject({ affectedRows: 0 });
+
+    expect(await objects({ sub: userId })).toEqual([path]);
+    expect(await objects(agent)).toEqual([path]);
+    expect(await objects({ sub: outsider.userId })).toEqual([]);
+  });
+
+  test("an agent uploads to its owner's projects", async () => {
+    const { userId, projectId } = await setup();
+    const agent = await createAgent(userId);
+    const task = await createTask(userId, projectId);
+    const attachment = await addAttachment(agent, task.id);
+    await expect(upload(agent, `${projectId}/${attachment.id}`)).resolves.toBeDefined();
+  });
+
+  test("only the uploader fills an attachment, and only within an hour", async () => {
+    const { userId, projectId } = await setup();
+    const agent = await createAgent(userId);
+    const task = await createTask(userId, projectId);
+
+    const mine = await addAttachment({ sub: userId }, task.id);
+    await expect(upload(agent, `${projectId}/${mine.id}`)).rejects.toThrow(/row-level security/);
+    const agents = await addAttachment(agent, task.id);
+    await expect(upload({ sub: userId }, `${projectId}/${agents.id}`)).rejects.toThrow(/row-level security/);
+
+    const stale = await addAttachment({ sub: userId }, task.id);
+    await db.query("update attachment set created_at = now() - interval '2 hours' where id = $1", [stale.id]);
+    await expect(upload({ sub: userId }, `${projectId}/${stale.id}`)).rejects.toThrow(/row-level security/);
+  });
+
+  test("go with their task when its project is deleted", async () => {
+    const { userId, projectId } = await setup();
+    const task = await createTask(userId, projectId);
+    await addAttachment({ sub: userId }, task.id);
+    await db.query("delete from project where id = $1", [projectId]);
+    expect(await one(db, "select count(*)::int as n from attachment where project_id = $1", [projectId])).toEqual({ n: 0 });
   });
 });

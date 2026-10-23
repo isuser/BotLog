@@ -19,7 +19,7 @@ async function readAll<T>(query: RangeQuery<T>): Promise<T[]> {
 
 /**
  * A whole project as plain data: the project, its board columns, epics, labels, tasks (with
- * label ids) and comments, archived items included. Ids are kept, so references between them still resolve.
+ * label ids), comments and attachments (metadata only, not the image files), archived items included. Ids are kept, so references between them still resolve.
  */
 export async function exportProject(db: Db, projectId: string) {
   const { data: project, error } = await db
@@ -29,7 +29,7 @@ export async function exportProject(db: Db, projectId: string) {
     .single();
   if (error) throw fromPostgrest(error);
 
-  const [columns, epics, labels, tasks, comments] = await Promise.all([
+  const [columns, epics, labels, tasks, comments, attachments] = await Promise.all([
     readAll((from, to) =>
       db
         .from("board_column")
@@ -70,6 +70,15 @@ export async function exportProject(db: Db, projectId: string) {
         .order("id")
         .range(from, to),
     ),
+    readAll((from, to) =>
+      db
+        .from("attachment")
+        .select("id, task_id, uploader_user_id, uploader_agent_id, file_name, content_type, size, created_at")
+        .eq("project_id", projectId)
+        .order("created_at")
+        .order("id")
+        .range(from, to),
+    ),
   ]);
 
   return {
@@ -91,5 +100,6 @@ export async function exportProject(db: Db, projectId: string) {
       void task;
       return rest;
     }),
+    attachments,
   };
 }

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ATTACHMENT_TYPES, MAX_ATTACHMENT_BYTES } from "./attachments";
 import { THEMES } from "./profile";
 
 export const TASK_STATUSES = ["backlog", "todo", "in_progress", "done"] as const;
@@ -87,6 +88,15 @@ export const moveTaskSchema = z
 
 export const createCommentSchema = z.object({ body: z.string().trim().min(1).max(20_000) }).strict();
 export const updateCommentSchema = createCommentSchema;
+
+/** An image about to be uploaded. The bucket checks the type and size again on upload. */
+export const createAttachmentSchema = z
+  .object({
+    file_name: z.string().trim().min(1).max(255),
+    content_type: z.enum(ATTACHMENT_TYPES, { error: "Images must be JPEG or GIF." }),
+    size: z.number().int().positive().max(MAX_ATTACHMENT_BYTES, { error: "Images can be up to 2 MB." }),
+  })
+  .strict();
 
 export const taskListFilters = z.object({
   status: z
