@@ -5,6 +5,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import useSWR from "swr";
 import { ActorAvatar, actorName } from "@/components/actor-avatar";
+import { AddImageButton, useImageUploads } from "@/components/image-uploads";
 import { Markdown } from "@/components/markdown";
 import { Button } from "@/components/ui/button";
 import {
@@ -35,10 +36,11 @@ export function TaskComments({ taskId }: { taskId: string }) {
   const [body, setBody] = useState("");
   const [posting, setPosting] = useState(false);
   const [deleting, setDeleting] = useState<Comment | null>(null);
+  const images = useImageUploads(taskId, setBody);
 
   async function post() {
     const trimmed = body.trim();
-    if (!trimmed || posting) return;
+    if (!trimmed || posting || images.uploading) return;
     setPosting(true);
     try {
       const { data } = await api<{ data: Comment }>(`/tasks/${taskId}/comments`, {
@@ -94,6 +96,7 @@ export function TaskComments({ taskId }: { taskId: string }) {
             <CommentItem
               key={comment.id}
               comment={comment}
+              taskId={taskId}
               onEdit={(body) => edit(comment, body)}
               onDelete={() => setDeleting(comment)}
             />
@@ -109,6 +112,7 @@ export function TaskComments({ taskId }: { taskId: string }) {
         }}
       >
         <Textarea
+          {...images.textareaProps}
           aria-label="New comment"
           placeholder="Write a comment (Markdown supported)"
           value={body}
@@ -123,9 +127,12 @@ export function TaskComments({ taskId }: { taskId: string }) {
           }}
           className="max-h-[40vh]"
         />
-        <Button type="submit" size="sm" className="self-end" disabled={posting || !body.trim()}>
-          Comment
-        </Button>
+        <div className="flex items-center justify-end gap-2">
+          <AddImageButton uploads={images} disabled={posting} />
+          <Button type="submit" size="sm" disabled={posting || images.uploading || !body.trim()}>
+            Comment
+          </Button>
+        </div>
       </form>
 
       <Dialog open={deleting !== null} onOpenChange={(open) => !open && setDeleting(null)}>
@@ -154,18 +161,21 @@ export function TaskComments({ taskId }: { taskId: string }) {
 /** One comment: rendered, or edited in place with Save and Cancel. */
 function CommentItem({
   comment,
+  taskId,
   onEdit,
   onDelete,
 }: {
   comment: Comment;
+  taskId: string;
   onEdit: (body: string) => Promise<boolean>;
   onDelete: () => void;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const images = useImageUploads(taskId, (update) => setDraft((draft) => (draft === null ? draft : update(draft))));
 
   async function save() {
-    if (draft === null || saving) return;
+    if (draft === null || saving || images.uploading) return;
     const trimmed = draft.trim();
     if (!trimmed) return;
     if (trimmed === comment.body) return setDraft(null);
@@ -240,6 +250,7 @@ function CommentItem({
             }}
           >
             <Textarea
+              {...images.textareaProps}
               aria-label="Edit comment"
               autoFocus
               value={draft}
@@ -259,11 +270,12 @@ function CommentItem({
               className="max-h-[40vh]"
             />
             <div className="flex items-center justify-end gap-2">
+              <AddImageButton uploads={images} disabled={saving} />
               <span className="text-muted-foreground mr-auto hidden text-xs sm:inline">⌘/Ctrl + Enter to save</span>
               <Button type="button" variant="ghost" size="sm" onClick={() => setDraft(null)} disabled={saving}>
                 Cancel
               </Button>
-              <Button type="submit" size="sm" disabled={saving || !draft.trim()}>
+              <Button type="submit" size="sm" disabled={saving || images.uploading || !draft.trim()}>
                 Save
               </Button>
             </div>
