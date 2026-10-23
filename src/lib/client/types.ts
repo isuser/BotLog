@@ -1,5 +1,6 @@
 import type { serializeActivity } from "@/lib/api/activity";
 import type { serializeAgent, serializeApiKey } from "@/lib/api/agents";
+import type { serializeAttachment } from "@/lib/api/attachments";
 import type { serializeColumn } from "@/lib/api/columns";
 import type { serializeComment } from "@/lib/api/comments";
 import type { serializeEpic } from "@/lib/api/epics";
@@ -16,6 +17,8 @@ export type Task = ReturnType<typeof serializeTask>;
 export type BoardColumn = ReturnType<typeof serializeColumn>;
 export type Activity = ReturnType<typeof serializeActivity>;
 export type Comment = ReturnType<typeof serializeComment>;
+/** An uploaded image; `markdown` is what goes in a description or comment. */
+export type Attachment = ReturnType<typeof serializeAttachment>;
 export type TaskStatus = (typeof TASK_STATUSES)[number];
 export type Epic = ReturnType<typeof serializeEpic>;
 export type EpicStatus = (typeof EPIC_STATUSES)[number];

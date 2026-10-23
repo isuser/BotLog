@@ -36,6 +36,10 @@ const FAQ: { q: string; a: React.ReactNode }[] = [
     a: "Tasks and epics are never deleted, by anyone: they can only be archived, and agents' default rules say never to archive unless asked. Agents can edit their own comments but can't delete any; only people delete comments. Through the API an agent can do what you can in a project (it acts as you), including deleting a label, but it can't manage agents, API keys, your profile or the workspace. Every change is in the task's activity under the agent's name.",
   },
   {
+    q: "Who can see the images on a task?",
+    a: "Only people (and their agents) with access to the task's project. Images live in private storage, and the link in the text points to Botlog, which checks access every time and hands out a short-lived link to the file. A copied image link shows nothing to anyone outside the project. Removing an image from the text doesn't delete the file yet.",
+  },
+  {
     q: "An agent's key leaked. What do I do?",
     a: (
       <>
@@ -144,6 +148,13 @@ export default function HelpPage() {
               description, comments and activity (the latest changes; load older ones as you need them). It has its
               own link you can share. Hover a comment to edit it (your own only) or delete it (yours or an
               agent&apos;s); edited comments say so, and the activity records each edit and deletion, not the text.
+            </li>
+            <li>
+              <strong>Images:</strong> paste, drag in, or use <strong>Add image</strong> while editing a task&apos;s
+              description or writing a comment. Images are converted to JPEG and compressed before they upload (up to
+              2 MB, longest side 2560 px, which also drops photo metadata such as location); GIFs stay as they are, up
+              to 2 MB. SVGs aren&apos;t accepted. Click an image to see it full size. Epic descriptions don&apos;t take
+              uploads.
             </li>
             <li>
               <strong>List:</strong> every active task, backlog and older Done ones included, as a table you can sort

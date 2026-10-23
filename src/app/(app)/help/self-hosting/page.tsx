@@ -144,8 +144,8 @@ cp .env.example .env    # .env.local if you'll run it with pnpm instead of Docke
           </p>
           <ol start={4}>
             <li>
-              <strong>Apply the database migrations</strong> (tables, access rules, realtime). Link the CLI to your
-              project and push:
+              <strong>Apply the database migrations</strong> (tables, access rules, realtime, and the private{" "}
+              <code>attachments</code> Storage bucket for images). Link the CLI to your project and push:
             </li>
           </ol>
           <CopyBlock
@@ -315,7 +315,8 @@ pnpm exec supabase db dump --linked --data-only -f data.sql`}
             </li>
             <li>
               <strong>Images:</strong> they live in Supabase Storage (the private <code>attachments</code> bucket), which
-              database dumps don&apos;t include. Back the bucket up separately if you need the files.
+              database dumps don&apos;t include. Back the bucket up separately if you need the files. Each image is at
+              most 2 MB; Supabase&apos;s free plan includes 1 GB of Storage.
             </li>
           </ul>
 

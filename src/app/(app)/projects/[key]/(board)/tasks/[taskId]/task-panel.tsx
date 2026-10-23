@@ -229,6 +229,7 @@ export function TaskPanel({
                 key={task.id}
                 description={task.description}
                 disabled={archived}
+                taskId={task.id}
                 onSave={(description) => update({ body: { description }, preview: { description } })}
               />
               <TaskComments taskId={task.id} />

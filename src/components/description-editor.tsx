@@ -2,25 +2,32 @@
 
 import { PencilIcon } from "lucide-react";
 import { useState } from "react";
+import { AddImageButton, useImageUploads } from "@/components/image-uploads";
 import { Markdown } from "@/components/markdown";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 
-/** A task or epic description in Markdown: rendered, or edited with Save and Cancel. */
+/**
+ * A task or epic description in Markdown: rendered, or edited with Save and Cancel. With a
+ * `taskId`, images can be pasted, dropped or added (epics have none).
+ */
 export function DescriptionEditor({
   description,
   disabled,
+  taskId,
   onSave,
 }: {
   description: string;
   disabled: boolean;
+  taskId?: string;
   onSave: (description: string) => Promise<boolean>;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const images = useImageUploads(taskId, (update) => setDraft((draft) => (draft === null ? draft : update(draft))));
 
   async function save() {
-    if (draft === null || saving) return;
+    if (draft === null || saving || images.uploading) return;
     if (draft === description) return setDraft(null);
     setSaving(true);
     // On a conflict the task reloads underneath and the draft stays, so nothing typed is lost.
@@ -51,6 +58,7 @@ export function DescriptionEditor({
           }}
         >
           <Textarea
+            {...images.textareaProps}
             aria-label="Description"
             autoFocus
             value={draft}
@@ -71,11 +79,12 @@ export function DescriptionEditor({
             className="max-h-[60vh] min-h-32 font-mono text-sm md:text-sm"
           />
           <div className="flex items-center justify-end gap-2">
+            <AddImageButton uploads={images} disabled={saving} />
             <span className="text-muted-foreground mr-auto hidden text-xs sm:inline">Markdown · ⌘/Ctrl + Enter to save</span>
             <Button type="button" variant="ghost" size="sm" onClick={() => setDraft(null)} disabled={saving}>
               Cancel
             </Button>
-            <Button type="submit" size="sm" disabled={saving}>
+            <Button type="submit" size="sm" disabled={saving || images.uploading}>
               Save
             </Button>
           </div>
