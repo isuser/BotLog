@@ -49,8 +49,9 @@ export function ProjectSettingsView({ projectKey }: { projectKey: string }) {
   return (
     <main className="mx-auto flex w-full max-w-[77rem] flex-1 flex-col overflow-y-auto px-4 pb-8 [&>*]:shrink-0">
       <div className="flex max-w-3xl flex-col gap-10">
-        {project ? <GeneralSection key={project.updated_at} project={project} /> : <Skeleton className="h-40 w-full" />}
-        {project && <BoardSection key={project.updated_at} project={project} />}
+        {/* Remount with fresh fields after a save. Sibling keys must differ, or React duplicates the old section. */}
+        {project ? <GeneralSection key={`general:${project.updated_at}`} project={project} /> : <Skeleton className="h-40 w-full" />}
+        {project && <BoardSection key={`board:${project.updated_at}`} project={project} />}
         <ColumnsSection projectKey={projectKey} />
         <LabelsSection projectKey={projectKey} />
         <ArchivedSection projectKey={projectKey} />
