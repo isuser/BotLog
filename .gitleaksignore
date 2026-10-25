@@ -2,3 +2,6 @@
 # Help page curl example with the placeholder key "bl_your_key" (PR #21); the snippet now reads
 # the key from an environment variable instead.
 3f6d526a5e9d46bedf40f6572a289c3c464c6707:src/app/(app)/help/page.tsx:curl-auth-header:231
+# Self-hosting page crontab example with the placeholder "your-cron-secret" (PR #35); the
+# example now reads the secret from $CRON_SECRET instead.
+8dd3763678c680464794e5a230db0a6247726077:src/app/(app)/help/self-hosting/page.tsx:curl-auth-header:331
