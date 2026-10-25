@@ -13,7 +13,7 @@ export const GET = route(
   { allowApiKey: false },
 );
 
-/** Changes the signed-in person's name or theme. */
+/** Changes the signed-in person's name, theme or preferences. */
 export const PATCH = route(
   async ({ db, actor, request }) => {
     const body = await parseBody(request, updateProfileSchema);

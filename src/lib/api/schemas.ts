@@ -151,7 +151,7 @@ export const createApiKeySchema = z.object({ name: z.string().trim().min(1).max(
 export const apiKeyListFilters = z.object({ revoked: z.enum(["true", "false"]).optional() });
 
 export const updateProfileSchema = z
-  .object({ name: z.string().trim().max(100), theme: z.enum(THEMES) })
+  .object({ name: z.string().trim().max(100), theme: z.enum(THEMES), open_task_after_create: z.boolean() })
   .partial()
   .strict()
   .refine((body) => Object.keys(body).length > 0, "Send at least one field to change.");

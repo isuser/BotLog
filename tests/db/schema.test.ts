@@ -253,6 +253,24 @@ describe("profile", () => {
     expect(profile.theme).toBe("lime");
   });
 
+  test("opens tasks after creating them by default, and its owner can turn that off", async () => {
+    const { userId } = await setup();
+    const before = await as(db, { sub: userId }, (tx) =>
+      one<{ open_task_after_create: boolean }>(tx, "select open_task_after_create from profile"),
+    );
+    const after = await as(db, { sub: userId }, (tx) =>
+      one<{ open_task_after_create: boolean }>(
+        tx,
+        "update profile set open_task_after_create = false where id = $1 returning open_task_after_create",
+        [userId],
+      ),
+    );
+    expect({ before: before.open_task_after_create, after: after.open_task_after_create }).toEqual({
+      before: true,
+      after: false,
+    });
+  });
+
   test("only accepts known themes", async () => {
     const { userId } = await setup();
     await expect(
@@ -270,7 +288,10 @@ describe("profile", () => {
     const byAgent = await as(db, claims, async (tx) =>
       (await tx.query("update profile set theme = 'sandpaper'")).affectedRows,
     );
-    expect({ changed, byAgent }).toEqual({ changed: 0, byAgent: 0 });
+    const preferenceByAgent = await as(db, claims, async (tx) =>
+      (await tx.query("update profile set open_task_after_create = false")).affectedRows,
+    );
+    expect({ changed, byAgent, preferenceByAgent }).toEqual({ changed: 0, byAgent: 0, preferenceByAgent: 0 });
   });
 });
 

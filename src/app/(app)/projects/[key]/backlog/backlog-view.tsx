@@ -32,7 +32,7 @@ import type { Task } from "@/lib/client/types";
 import { cn } from "@/lib/utils";
 import { AssigneePicker } from "../(board)/assignee-picker";
 import { QuickAdd } from "../(board)/quick-add";
-import { usePrefetchTaskRoute } from "../(board)/task-card";
+import { useOpenNewTask, usePrefetchTaskRoute } from "../(board)/task-card";
 
 /**
  * The project's backlog as a ranked list: drag to reorder, and send a task to the board's
@@ -43,6 +43,7 @@ export function BacklogView({ projectKey }: { projectKey: string }) {
   const tasksKey = `/projects/${projectKey}/tasks`;
   const { data: tasks, error, mutate } = useSWR(tasksKey, (path: string) => apiAll<Task>(path));
   usePrefetchTaskRoute(tasks, "backlog");
+  const openNewTask = useOpenNewTask("backlog");
   const [activeTask, setActiveTask] = useState<Task | null>(null);
 
   const sensors = useSensors(
@@ -120,6 +121,7 @@ export function BacklogView({ projectKey }: { projectKey: string }) {
     await mutate((current) => withBacklog(current ?? [], [data, ...groupByStatus(current ?? []).backlog]), {
       revalidate: false,
     });
+    openNewTask(data);
   }
 
   if (error) {

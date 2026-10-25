@@ -4,6 +4,7 @@ import { CheckIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import useSWR from "swr";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -23,7 +24,7 @@ export function SettingsView() {
     api<{ data: Profile }>(path).then((r) => r.data),
   );
 
-  async function save(change: Partial<Pick<Profile, "name" | "theme">>) {
+  async function save(change: Partial<Pick<Profile, "name" | "theme" | "open_task_after_create">>) {
     const { data } = await api<{ data: Profile }>("/me", { method: "PATCH", json: change });
     await mutate(data, { revalidate: false });
   }
@@ -42,6 +43,7 @@ export function SettingsView() {
         <>
           <ProfileSection key={profile.name} profile={profile} onSave={save} />
           <ThemeSection saved={profile.theme} onSave={save} />
+          <TasksSection profile={profile} onSave={save} />
         </>
       )}
     </main>
@@ -147,6 +149,49 @@ function ThemeSection({ saved, onSave }: { saved: Theme; onSave: (change: { them
             </button>
           );
         })}
+      </div>
+    </section>
+  );
+}
+
+/** Personal preferences for working with tasks. Each change saves at once. */
+function TasksSection({
+  profile,
+  onSave,
+}: {
+  profile: Profile;
+  onSave: (change: { open_task_after_create: boolean }) => Promise<void>;
+}) {
+  const [open, setOpen] = useState(profile.open_task_after_create);
+
+  async function toggle(next: boolean) {
+    setOpen(next);
+    try {
+      await onSave({ open_task_after_create: next });
+    } catch (error) {
+      setOpen(!next);
+      toast.error(errorMessage(error));
+    }
+  }
+
+  return (
+    <section className="flex flex-col gap-4" aria-labelledby="settings-tasks">
+      <h2 id="settings-tasks" className="text-sm font-semibold">
+        Tasks
+      </h2>
+      <div className="flex max-w-md items-start gap-3">
+        <Checkbox
+          id="settings-open-task"
+          className="mt-0.5"
+          checked={open}
+          onCheckedChange={(checked) => void toggle(checked)}
+        />
+        <div className="grid gap-1">
+          <Label htmlFor="settings-open-task">Open new tasks</Label>
+          <p className="text-muted-foreground text-xs">
+            After you add a task on the board or in the backlog, open it to fill in the details.
+          </p>
+        </div>
       </div>
     </section>
   );
