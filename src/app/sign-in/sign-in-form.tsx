@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect } from "react";
 import { useFormStatus } from "react-dom";
 import { useSearchParams } from "next/navigation";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -16,6 +16,12 @@ export function SignInForm({ google }: { google: boolean }) {
     error: signInErrorMessage(searchParams.get("error")),
     email: "",
   });
+  const redirectTo = state.redirectTo;
+
+  // Signed in: load the app as a new page, so nothing from an earlier session in this tab remains.
+  useEffect(() => {
+    if (redirectTo) window.location.assign(redirectTo);
+  }, [redirectTo]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -59,8 +65,8 @@ export function SignInForm({ google }: { google: boolean }) {
           <Input id="password" name="password" type="password" autoComplete="current-password" required />
         </div>
 
-        <Button type="submit" disabled={pending} className="mt-2">
-          {pending ? "Signing in…" : "Sign in"}
+        <Button type="submit" disabled={pending || Boolean(redirectTo)} className="mt-2">
+          {pending || redirectTo ? "Signing in…" : "Sign in"}
         </Button>
       </form>
     </div>
