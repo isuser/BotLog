@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { requireUser } from "@/lib/auth/session";
 import { TaskPanel } from "../../../(board)/tasks/[taskId]/task-panel";
 
 export async function generateMetadata({ params }: PageProps<"/projects/[key]/list/tasks/[taskId]">): Promise<Metadata> {
@@ -9,23 +8,11 @@ export async function generateMetadata({ params }: PageProps<"/projects/[key]/li
 }
 
 /** A task open over the list view. Closing it goes back to the list. */
-export default function ListTaskPage({ params }: PageProps<"/projects/[key]/list/tasks/[taskId]">) {
+export default function ListTaskPage() {
   return (
-    // Reads the URL and the session, so it renders at request time.
+    // The panel reads the URL in the browser, like on the board.
     <Suspense fallback={null}>
-      <TaskPanelForRoute params={params} />
+      <TaskPanel view="list" />
     </Suspense>
-  );
-}
-
-async function TaskPanelForRoute({ params }: Pick<PageProps<"/projects/[key]/list/tasks/[taskId]">, "params">) {
-  const [{ key, taskId }, user] = await Promise.all([params, requireUser()]);
-  return (
-    <TaskPanel
-      projectKey={key.toUpperCase()}
-      taskRef={decodeURIComponent(taskId).toUpperCase()}
-      currentUser={user}
-      view="list"
-    />
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { ArchiveIcon, ArchiveRestoreIcon, LinkIcon } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import useSWR, { useSWRConfig } from "swr";
@@ -13,32 +13,39 @@ import { api, ApiRequestError, isConflict } from "@/lib/client/api";
 import { COLUMNS, syncTask, taskHref, type TaskView } from "@/lib/client/board";
 import { isPlainKey, isTypingTarget, useKeydown } from "@/lib/client/shortcuts";
 import { fullDate, timeAgo } from "@/lib/client/format";
-import type { BoardColumn, Task, TaskStatus } from "@/lib/client/types";
+import type { BoardColumn, Profile, Task, TaskStatus } from "@/lib/client/types";
 import { TaskActivity } from "./task-activity";
 import { TaskComments } from "./task-comments";
-import { TaskFields, TaskTitle, type CurrentUser, type FieldChange } from "./task-fields";
+import { TaskFields, TaskTitle, type FieldChange } from "./task-fields";
 
 const COLUMN_TITLES = Object.fromEntries(COLUMNS.map((c) => [c.status, c.title])) as Record<TaskStatus, string>;
 
-/** Side panel on wide screens, full-screen on phones. Closing it goes back to the board or list. */
+/**
+ * Side panel on wide screens, full-screen on phones. Closing it goes back to the board or list.
+ *
+ * It reads the task from the URL and the user from `/me` in the browser, so opening a task
+ * needs no server render, and it shows the board's copy of the task while the full one loads.
+ */
 export function TaskPanel({
-  projectKey,
-  taskRef,
-  currentUser,
   view = "board",
 }: {
-  projectKey: string;
-  taskRef: string;
-  currentUser: CurrentUser;
   /** The project page the panel is open over, which closing returns to. */
   view?: TaskView;
 }) {
+  const params = useParams<{ key: string; taskId: string }>();
+  const projectKey = params.key.toUpperCase();
+  const taskRef = decodeURIComponent(params.taskId).toUpperCase();
   const router = useRouter();
-  const { mutate: mutateKey } = useSWRConfig();
+  const { cache, mutate: mutateKey } = useSWRConfig();
   const backHref = `/projects/${projectKey}${view === "board" ? "" : `/${view}`}`;
-  const { data: task, error, mutate } = useSWR(`/tasks/${taskRef}`, (path: string) =>
-    api<{ data: Task }>(path).then((r) => r.data),
+  const boardTasks = cache.get(`/projects/${projectKey}/tasks`)?.data as Task[] | undefined;
+  const { data: task, error, mutate } = useSWR(
+    `/tasks/${taskRef}`,
+    (path: string) => api<{ data: Task }>(path).then((r) => r.data),
+    { fallbackData: boardTasks?.find((t) => t.short_id === taskRef || t.id.toUpperCase() === taskRef) },
   );
+  const { data: me } = useSWR("/me", (path: string) => api<{ data: Profile }>(path).then((r) => r.data));
+  const currentUser = me && { id: me.id, email: me.email };
   const [open, setOpen] = useState(true);
   const popupRef = useRef<HTMLDivElement>(null);
 
@@ -76,7 +83,8 @@ export function TaskPanel({
     const loaded = task;
     const run = async () => {
       try {
-        const updated = await mutate(async (current) => current && (await send(current)).data, {
+        // `current` is empty while the panel still shows the board's copy of the task.
+        const updated = await mutate(async (current) => (await send(current ?? loaded)).data, {
           optimisticData: (current) => preview(current ?? loaded),
           rollbackOnError: true,
           revalidate: false,
@@ -157,7 +165,7 @@ export function TaskPanel({
   // 1–4 move the open task to a column, i assigns it to you, u unassigns it.
   useKeydown(
     (e) => {
-      if (!task || archived || !isPlainKey(e) || isTypingTarget(e.target)) return;
+      if (!task || !currentUser || archived || !isPlainKey(e) || isTypingTarget(e.target)) return;
       const status = COLUMNS[Number(e.key) - 1]?.status;
       if (status) {
         e.preventDefault();
@@ -211,7 +219,7 @@ export function TaskPanel({
               <p className="font-medium">{notFound ? "Task not found" : "Couldn't load this task"}</p>
               {!notFound && <p className="text-muted-foreground text-sm">{error.message}</p>}
             </div>
-          ) : !task ? (
+          ) : !task || !currentUser ? (
             <PanelSkeleton />
           ) : (
             <>
