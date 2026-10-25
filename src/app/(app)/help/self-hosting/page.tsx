@@ -323,12 +323,14 @@ node --env-file=.env .next/standalone/server.js`}
             </li>
             <li>
               <strong>Docker or Node:</strong> set <code>CRON_SECRET</code> and schedule the request yourself, for
-              example with a crontab line on the host:
+              example with these crontab lines on the host. Cron doesn&apos;t see the app&apos;s environment, so the
+              first line sets the same secret for the job:
             </li>
           </ul>
           <CopyBlock
-            label="cleanup crontab line"
-            text={`0 4 * * * curl -fsS -H "Authorization: Bearer your-cron-secret" https://botlog.example.com/api/cron/attachment-cleanup`}
+            label="cleanup crontab lines"
+            text={`CRON_SECRET=the-same-value-as-the-app
+0 4 * * * curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://botlog.example.com/api/cron/attachment-cleanup`}
           />
 
           <h2 id="backups">Backups</h2>
