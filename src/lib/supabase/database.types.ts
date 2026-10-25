@@ -438,6 +438,7 @@ export type Database = {
           email: string
           id: string
           name: string
+          open_task_after_create: boolean
           theme: string
           updated_at: string
           workspace_id: string
@@ -447,6 +448,7 @@ export type Database = {
           email: string
           id: string
           name?: string
+          open_task_after_create?: boolean
           theme?: string
           updated_at?: string
           workspace_id: string
@@ -456,6 +458,7 @@ export type Database = {
           email?: string
           id?: string
           name?: string
+          open_task_after_create?: boolean
           theme?: string
           updated_at?: string
           workspace_id?: string

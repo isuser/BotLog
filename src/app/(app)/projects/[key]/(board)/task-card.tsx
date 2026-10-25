@@ -4,13 +4,15 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect } from "react";
+import useSWR from "swr";
 import { ActorAvatar, actorName, UnassignedAvatar } from "@/components/actor-avatar";
 import { EpicPill } from "@/components/epic-pill";
 import { LabelChip } from "@/components/label-chip";
 import { Badge } from "@/components/ui/badge";
+import { api } from "@/lib/client/api";
 import { taskHref, type TaskView } from "@/lib/client/board";
 import { PRIORITY_BADGE, TYPE_BADGE } from "@/lib/client/task-labels";
-import type { Task } from "@/lib/client/types";
+import type { Profile, Task } from "@/lib/client/types";
 import { cn } from "@/lib/utils";
 import { AssigneePicker } from "./assignee-picker";
 
@@ -120,4 +122,18 @@ export function usePrefetchTaskRoute(tasks: Task[] | undefined, view: TaskView) 
   useEffect(() => {
     if (href) router.prefetch(href);
   }, [href, router]);
+}
+
+/**
+ * Opens a task you just added, unless you turned that off in Settings. Call it once the task is
+ * in the cache, so the panel shows it straight away.
+ */
+export function useOpenNewTask(view: TaskView) {
+  const router = useRouter();
+  const { data: me } = useSWR("/me", (path: string) => api<{ data: Profile }>(path).then((r) => r.data));
+  // On by default, like the profile column, so it works before /me has loaded.
+  const enabled = me?.open_task_after_create ?? true;
+  return (task: Task) => {
+    if (enabled) router.push(taskHref(task, view), { scroll: false });
+  };
 }

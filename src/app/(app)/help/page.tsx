@@ -124,7 +124,8 @@ export default function HelpPage() {
             <li>
               <strong>Board:</strong> To do, In progress and Done, plus your own columns. Type in “Add a task” at the
               top of a column, drag cards between columns, click a card to open it. Click the avatar on a card to
-              assign it.
+              assign it. A task you add on the board or in the backlog opens straight away so you can fill in the
+              details; turn that off in <Link href="/settings">Settings</Link> under Tasks.
             </li>
             <li>
               <strong>Columns:</strong> add your own (like In review or QA) in the project&apos;s{" "}

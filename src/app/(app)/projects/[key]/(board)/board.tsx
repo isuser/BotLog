@@ -35,7 +35,7 @@ import {
 } from "@/lib/client/board";
 import type { BoardColumn as Column, Project, Task } from "@/lib/client/types";
 import { BoardColumn } from "./board-column";
-import { TaskCard, usePrefetchTaskRoute } from "./task-card";
+import { TaskCard, useOpenNewTask, usePrefetchTaskRoute } from "./task-card";
 
 export function Board({ projectKey }: { projectKey: string }) {
   const { data: project, error: projectError } = useSWR(`/projects/${projectKey}`, (path: string) =>
@@ -46,6 +46,7 @@ export function Board({ projectKey }: { projectKey: string }) {
   const tasksKey = `/projects/${projectKey}/tasks`;
   const { data: tasks, error: tasksError, mutate } = useSWR(tasksKey, (path: string) => apiAll<Task>(path));
   usePrefetchTaskRoute(tasks, "board");
+  const openNewTask = useOpenNewTask("board");
   // Every column, hidden ones and the Backlog included, so each task has a place.
   const { data: projectColumns, error: columnsError } = useSWR(`/projects/${projectKey}/columns`, (path: string) =>
     apiAll<Column>(path),
@@ -150,6 +151,7 @@ export function Board({ projectKey }: { projectKey: string }) {
         },
         { revalidate: false },
       );
+      openNewTask(data);
     } catch (error) {
       reportError(error);
       throw error;

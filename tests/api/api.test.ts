@@ -724,8 +724,17 @@ describe("profile", () => {
     expect((await call(me.GET, { token: bob.token })).body.data.theme).toBe("sandpaper");
   });
 
+  test("turns opening tasks after creating them off and on", async () => {
+    expect((await call(me.GET, { token: bob.token })).body.data.open_task_after_create).toBe(true);
+    const off = await call(me.PATCH, { method: "PATCH", token: bob.token, body: { open_task_after_create: false } });
+    expect(off.status, JSON.stringify(off.body)).toBe(200);
+    expect(off.body.data.open_task_after_create).toBe(false);
+    const on = await call(me.PATCH, { method: "PATCH", token: bob.token, body: { open_task_after_create: true } });
+    expect(on.body.data.open_task_after_create).toBe(true);
+  });
+
   test("rejects unknown themes, extra fields and empty bodies", async () => {
-    for (const body of [{ theme: "neon" }, { email: "x@example.com" }, {}]) {
+    for (const body of [{ theme: "neon" }, { open_task_after_create: "yes" }, { email: "x@example.com" }, {}]) {
       const res = await call(me.PATCH, { method: "PATCH", token: bob.token, body });
       expect(res.status, JSON.stringify(body)).toBe(400);
     }
