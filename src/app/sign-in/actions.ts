@@ -7,7 +7,8 @@ import { googleSignInEnabled } from "@/lib/auth/google";
 import { safeRedirectPath } from "@/lib/auth/redirect";
 import { createClient } from "@/lib/supabase/server";
 
-export type SignInState = { error: string | null; email: string };
+/** `redirectTo` is set once signed in: the form then loads it as a new page. */
+export type SignInState = { error: string | null; email: string; redirectTo?: string };
 
 // Same message for unknown emails, wrong passwords and emails not on the allowlist, so
 // the form doesn't reveal who has an account.
@@ -27,7 +28,9 @@ export async function signIn(_prev: SignInState, formData: FormData): Promise<Si
     return { error: tooMany ? "Too many attempts. Try again in a few minutes." : INVALID, email };
   }
 
-  redirect(safeRedirectPath(formData.get("next")));
+  // Not redirect(): that navigates within the tab, which could still hold an earlier session's
+  // cached data (for example after it expired). The form loads the app as a new page instead.
+  return { error: null, email, redirectTo: safeRedirectPath(formData.get("next")) };
 }
 
 /** Starts "Continue with Google": Supabase sends the browser to Google, then to /auth/callback. */

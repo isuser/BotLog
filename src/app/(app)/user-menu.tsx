@@ -2,7 +2,7 @@ import { SettingsIcon } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { requireUser } from "@/lib/auth/session";
-import { signOut } from "./actions";
+import { SignOutButton } from "./sign-out-button";
 
 export async function UserMenu() {
   const user = await requireUser();
@@ -13,11 +13,7 @@ export async function UserMenu() {
       <Button variant="ghost" size="icon-sm" nativeButton={false} render={<Link href="/settings" aria-label="Settings" />}>
         <SettingsIcon className="size-4" />
       </Button>
-      <form action={signOut}>
-        <Button type="submit" variant="ghost" size="sm">
-          Sign out
-        </Button>
-      </form>
+      <SignOutButton />
     </div>
   );
 }
