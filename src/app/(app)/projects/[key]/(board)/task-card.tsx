@@ -3,11 +3,12 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useParams, useRouter } from "next/navigation";
+import { useEffect } from "react";
 import { ActorAvatar, actorName, UnassignedAvatar } from "@/components/actor-avatar";
 import { EpicPill } from "@/components/epic-pill";
 import { LabelChip } from "@/components/label-chip";
 import { Badge } from "@/components/ui/badge";
-import { taskHref } from "@/lib/client/board";
+import { taskHref, type TaskView } from "@/lib/client/board";
 import { PRIORITY_BADGE, TYPE_BADGE } from "@/lib/client/task-labels";
 import type { Task } from "@/lib/client/types";
 import { cn } from "@/lib/utils";
@@ -107,4 +108,16 @@ export function SortableTaskCard({ task }: { task: Task }) {
       />
     </li>
   );
+}
+
+/**
+ * Fetches the task route's shell (the same for every task) as soon as the view has a task,
+ * so opening a task never waits for the server.
+ */
+export function usePrefetchTaskRoute(tasks: Task[] | undefined, view: TaskView) {
+  const router = useRouter();
+  const href = tasks?.[0] && taskHref(tasks[0], view);
+  useEffect(() => {
+    if (href) router.prefetch(href);
+  }, [href, router]);
 }

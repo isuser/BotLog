@@ -8,8 +8,8 @@ const PUBLIC_PATHS = new Set([SIGN_IN, "/auth/callback"]);
 
 /**
  * Keeps the Supabase session fresh and sends anyone who isn't signed in (or isn't on the
- * allowlist) to the sign-in page. This is only the first gate: pages and API routes check
- * the user again on the server.
+ * allowlist) to the sign-in page. This is only the first gate: the API checks every request
+ * itself, and pages don't render project data on the server.
  */
 export async function proxy(request: NextRequest) {
   const { response, claims } = await updateSession(request);

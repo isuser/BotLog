@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { requireUser } from "@/lib/auth/session";
 import { TaskPanel } from "./task-panel";
 
 export async function generateMetadata({ params }: PageProps<"/projects/[key]/tasks/[taskId]">): Promise<Metadata> {
@@ -9,18 +8,12 @@ export async function generateMetadata({ params }: PageProps<"/projects/[key]/ta
 }
 
 /** A task open over its board. The URL can be shared; opening it loads the board behind. */
-export default function TaskPage({ params }: PageProps<"/projects/[key]/tasks/[taskId]">) {
+export default function TaskPage() {
   return (
-    // Reads the URL and the session, so it renders at request time.
+    // The panel reads the URL, which is only known at request time on a page load. Opening
+    // a task from the board renders it straight away, without waiting for the server.
     <Suspense fallback={null}>
-      <TaskPanelForRoute params={params} />
+      <TaskPanel />
     </Suspense>
-  );
-}
-
-async function TaskPanelForRoute({ params }: Pick<PageProps<"/projects/[key]/tasks/[taskId]">, "params">) {
-  const [{ key, taskId }, user] = await Promise.all([params, requireUser()]);
-  return (
-    <TaskPanel projectKey={key.toUpperCase()} taskRef={decodeURIComponent(taskId).toUpperCase()} currentUser={user} />
   );
 }
