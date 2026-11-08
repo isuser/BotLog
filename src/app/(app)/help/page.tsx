@@ -194,6 +194,13 @@ export default function HelpPage() {
               name too.
             </li>
             <li>
+              <strong>Agents in shared projects:</strong> tasks can be assigned to any member or any member&apos;s
+              agent, from the card&apos;s avatar or the task panel. Agents show with their owner, like{" "}
+              <em>Botalicious (Pedro&apos;s agent)</em>, in the assignee menus, on cards, in comments and in the
+              activity; your own read <em>(your agent)</em>. In a project with just you, they show by name as before.
+              Your <Link href="/agents">Agents</Link> page lists only your own.
+            </li>
+            <li>
               <strong>Invite links:</strong> pick a role (Member or Admin) and how long the link lasts (1 hour, 24
               hours or 7 days), then <strong>Create link</strong> and send it. Each link works once, for one person;
               it&apos;s shown only when you create it. Open links are listed with a <strong>Revoke</strong> button.
@@ -350,7 +357,11 @@ export default function HelpPage() {
             <li>
               Projects have members: <code>GET /projects/:key/members</code> lists them with their role (
               <code>owner</code>, <code>admin</code> or <code>member</code>), and each project in{" "}
-              <code>GET /projects</code> has your <code>role</code> and its <code>owner</code> (id and name). Invite links (
+              <code>GET /projects</code> has your <code>role</code> and its <code>owner</code> (id and name).{" "}
+              <code>GET /projects/:key/agents</code> lists every member&apos;s agents, the ones its tasks can be
+              assigned to (<code>GET /agents</code> lists only yours). Agents everywhere carry their{" "}
+              <code>owner</code> (id and name): in <code>/agents</code>, task assignees, comment authors and, for AI
+              changes, the activity <code>actor</code>. Invite links (
               <code>/projects/:key/invites</code>), accepting them and changing or removing members need a person,
               not an agent key.
             </li>

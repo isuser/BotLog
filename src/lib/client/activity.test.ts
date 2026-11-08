@@ -7,7 +7,7 @@ const entry = (action: string, changes: Record<string, unknown> = {}): Activity 
   entity_type: "task",
   entity_id: "t1",
   action,
-  actor: { type: "human", user_id: "u1", agent_id: null, api_key_id: null, name: "Ana" },
+  actor: { type: "human", user_id: "u1", agent_id: null, api_key_id: null, name: "Ana", owner: null },
   changes: changes as Activity["changes"],
   created_at: "2026-10-13T10:00:00Z",
 });
@@ -113,5 +113,20 @@ describe("nameLookup", () => {
     expect(lookup("agent", "g1")).toBe("Claude");
     expect(lookup("user", "u2")).toBe("Bea");
     expect(lookup("agent", "u1")).toBeUndefined();
+  });
+
+  test("knows the project's members, and labels an agent assignee with its owner in shared projects", () => {
+    const task = {
+      assignee: { type: "agent", id: "g2", name: "Bot", avatar: null, owner: { id: "u2", name: "Bea" } },
+    } as Task;
+    const members = [
+      { id: "u1", name: "Ana", email: "ana@example.com" },
+      { id: "u3", name: "", email: "cy@example.com" },
+    ];
+    const lookup = nameLookup({ id: "u1" }, [], task, { members, context: { shared: true, meId: "u1" } });
+    expect(lookup("user", "u1")).toBe("you");
+    expect(lookup("user", "u3")).toBe("cy@example.com");
+    expect(lookup("agent", "g2")).toBe("Bot (Bea's agent)");
+    expect(nameLookup({ id: "u1" }, [], task)("agent", "g2")).toBe("Bot");
   });
 });

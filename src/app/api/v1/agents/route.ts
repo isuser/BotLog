@@ -6,7 +6,8 @@ import { agentListFilters, createAgentSchema } from "@/lib/api/schemas";
 
 /**
  * Agents in the workspace, oldest first. Archived ones only with `?archived=true`. RLS also
- * shows agents of people you share a project with; they aren't listed here. Workspaces have
+ * shows agents of people you share a project with; they aren't listed here (a project's are at
+ * `GET /projects/:id/agents`). Workspaces have
  * one person, so the workspace's agents are the caller's (or the calling agent's owner's).
  */
 export const GET = route(async ({ db, url, actor }) => {

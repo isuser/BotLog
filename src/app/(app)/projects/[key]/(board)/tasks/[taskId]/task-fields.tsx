@@ -3,14 +3,16 @@
 import { CalendarIcon, CircleDotIcon, LayersIcon, SignalIcon, TagIcon, TagsIcon, UserIcon, type LucideIcon } from "lucide-react";
 import { useState } from "react";
 import useSWR from "swr";
-import { ActorAvatar, actorName, UnassignedAvatar, type Actor } from "@/components/actor-avatar";
+import { ActorAvatar, UnassignedAvatar, type Actor } from "@/components/actor-avatar";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { apiAll } from "@/lib/client/api";
+import { assigneeOptions } from "@/lib/client/assignees";
 import { PRIORITY_BADGE, PRIORITY_LABELS, STATUS_COLORS, TYPE_BADGE, TYPE_LABELS } from "@/lib/client/task-labels";
-import type { Agent, BoardColumn, Epic, Task, TaskStatus } from "@/lib/client/types";
+import type { BoardColumn, Epic, Task, TaskStatus } from "@/lib/client/types";
+import { useProjectPeople } from "@/lib/client/use-project-people";
 import { cn } from "@/lib/utils";
 import { LabelPicker } from "./label-picker";
 
@@ -110,7 +112,7 @@ export function TaskFields({
   onChange: (change: FieldChange) => Promise<boolean>;
   onMove: (column: Pick<BoardColumn, "id" | "name" | "counts_as">) => Promise<boolean>;
 }) {
-  const { data: agents } = useSWR("/agents", (path: string) => apiAll<Agent>(path));
+  const { me, members, agents, context } = useProjectPeople(task.project_id, { withAgents: true });
   const { data: columns } = useSWR(`/projects/${task.project_key}/columns`, (path: string) =>
     apiAll<BoardColumn>(path),
   );
@@ -122,20 +124,18 @@ export function TaskFields({
   if (!columnOptions.has(task.column_id)) columnOptions.set(task.column_id, { ...task.column, counts_as: task.status });
   const columnNames = Object.fromEntries([...columnOptions].map(([id, c]) => [id, c.name]));
 
-  // Unassigned, you, the workspace's active agents, and whoever the task is assigned to now
-  // (which may be an archived agent).
-  const me: Actor = { type: "user", id: currentUser.id, name: "", email: currentUser.email };
-  const assignees = new Map<string, Actor | null>([
-    ["none", null],
-    [assigneeValue(me), task.assignee?.type === "user" && task.assignee.id === me.id ? task.assignee : me],
-  ]);
-  for (const agent of agents ?? []) {
-    const actor: Actor = { type: "agent", id: agent.id, name: agent.name, avatar: agent.avatar };
-    assignees.set(assigneeValue(actor), actor);
-  }
-  if (task.assignee) assignees.set(assigneeValue(task.assignee), task.assignee);
-  const assigneeLabel = (actor: Actor | null) =>
-    !actor ? "Unassigned" : actor.type === "user" && actor.id === me.id ? "Me" : actorName(actor);
+  // Unassigned, you, the other members, every member's active agent, and whoever the task is
+  // assigned to now (which may be an archived agent).
+  const options = assigneeOptions({
+    me: me ?? { id: currentUser.id, name: "", email: currentUser.email },
+    members,
+    agents,
+    current: task.assignee,
+    context,
+  });
+  const assignees = new Map(options.map(({ actor }) => [assigneeValue(actor), actor]));
+  const labels = new Map(options.map(({ actor, label }) => [assigneeValue(actor), label]));
+  const assigneeLabel = (actor: Actor | null) => labels.get(assigneeValue(actor)) ?? "Unassigned";
 
   return (
     <dl className="grid grid-cols-[7rem_minmax(0,1fr)] items-center gap-x-3 gap-y-1.5 text-sm">
@@ -276,7 +276,7 @@ function FieldSelect<T extends string>({
 function AssigneeOption({ actor, label }: { actor: Actor | null; label: (actor: Actor | null) => string }) {
   return (
     <span className="flex min-w-0 items-center gap-2">
-      {actor ? <ActorAvatar actor={actor} className="size-5" /> : <UnassignedAvatar className="size-5 [&_svg]:size-3" />}
+      {actor ? <ActorAvatar actor={actor} label={label(actor)} className="size-5" /> : <UnassignedAvatar className="size-5 [&_svg]:size-3" />}
       <span className="truncate">{label(actor)}</span>
     </span>
   );

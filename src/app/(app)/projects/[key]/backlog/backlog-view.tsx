@@ -19,7 +19,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 import useSWR from "swr";
-import { ActorAvatar, actorName, UnassignedAvatar } from "@/components/actor-avatar";
+import { ActorAvatar, UnassignedAvatar } from "@/components/actor-avatar";
 import { EpicPill } from "@/components/epic-pill";
 import { LabelChip } from "@/components/label-chip";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +29,7 @@ import { api, apiAll, isConflict } from "@/lib/client/api";
 import { flatten, groupByStatus, syncTask, taskHref } from "@/lib/client/board";
 import { PRIORITY_BADGE, TYPE_BADGE } from "@/lib/client/task-labels";
 import type { Task } from "@/lib/client/types";
+import { useProjectPeople } from "@/lib/client/use-project-people";
 import { cn } from "@/lib/utils";
 import { AssigneePicker } from "../(board)/assignee-picker";
 import { QuickAdd } from "../(board)/quick-add";
@@ -192,6 +193,7 @@ function BacklogRow({
   selected?: boolean;
   actions?: React.ReactNode;
 }) {
+  const { name } = useProjectPeople(task.project_id);
   const type = TYPE_BADGE[task.type];
   const priority = PRIORITY_BADGE[task.priority];
   return (
@@ -219,8 +221,8 @@ function BacklogRow({
       {priority && <Badge variant={priority.variant}>{priority.label}</Badge>}
       {actions ?? (
         <span className="flex">
-          {task.assignee ? <ActorAvatar actor={task.assignee} /> : <UnassignedAvatar />}
-          <span className="sr-only">{task.assignee ? `Assigned to ${actorName(task.assignee)}` : "Unassigned"}</span>
+          {task.assignee ? <ActorAvatar actor={task.assignee} label={name(task.assignee)} /> : <UnassignedAvatar />}
+          <span className="sr-only">{task.assignee ? `Assigned to ${name(task.assignee)}` : "Unassigned"}</span>
         </span>
       )}
     </div>

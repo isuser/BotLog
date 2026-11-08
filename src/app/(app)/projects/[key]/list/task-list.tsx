@@ -6,7 +6,7 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import useSWR from "swr";
-import { ActorAvatar, actorName, UnassignedAvatar } from "@/components/actor-avatar";
+import { ActorAvatar, UnassignedAvatar } from "@/components/actor-avatar";
 import { EpicPill } from "@/components/epic-pill";
 import { LabelChip } from "@/components/label-chip";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +17,7 @@ import { formatDate, fullDate, timeAgo } from "@/lib/client/format";
 import { PRIORITY_BADGE, STATUS_COLORS, TYPE_BADGE } from "@/lib/client/task-labels";
 import { DEFAULT_SORT, nextSort, parseSort, sortTasks, type Sort, type SortKey } from "@/lib/client/task-sort";
 import type { Task } from "@/lib/client/types";
+import { useProjectPeople } from "@/lib/client/use-project-people";
 import { cn } from "@/lib/utils";
 import { QuickAdd } from "../(board)/quick-add";
 
@@ -147,6 +148,7 @@ export function TaskList({ projectKey }: { projectKey: string }) {
 
 /** One row. The title is the link; the rest of the row is clickable through it (stretched). */
 function TaskRow({ task, selected, overdue }: { task: Task; selected: boolean; overdue: boolean }) {
+  const { name } = useProjectPeople(task.project_id);
   const type = TYPE_BADGE[task.type];
   const priority = PRIORITY_BADGE[task.priority];
   return (
@@ -179,8 +181,8 @@ function TaskRow({ task, selected, overdue }: { task: Task; selected: boolean; o
       <td className="px-3 py-2">
         {task.assignee ? (
           <span className="flex min-w-0 items-center gap-2">
-            <ActorAvatar actor={task.assignee} className="size-5" />
-            <span className="truncate">{actorName(task.assignee)}</span>
+            <ActorAvatar actor={task.assignee} label={name(task.assignee)} className="size-5" />
+            <span className="truncate">{name(task.assignee)}</span>
           </span>
         ) : (
           <span className="text-muted-foreground flex items-center gap-2">

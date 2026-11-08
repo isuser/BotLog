@@ -240,7 +240,7 @@ export function TaskPanel({
                 taskId={task.id}
                 onSave={(description) => update({ body: { description }, preview: { description } })}
               />
-              <TaskComments taskId={task.id} />
+              <TaskComments taskId={task.id} projectId={task.project_id} />
               <TaskActivity task={task} currentUser={currentUser} />
               <footer className="mt-auto flex items-center justify-between gap-3 border-t pt-3">
                 <p className="text-muted-foreground text-xs">

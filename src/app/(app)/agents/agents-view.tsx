@@ -5,6 +5,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import useSWR, { useSWRConfig } from "swr";
 import { ActorAvatar } from "@/components/actor-avatar";
+import { agentActor } from "@/lib/client/assignees";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -114,7 +115,7 @@ function AgentCard({ agent, canManage }: { agent: Agent; canManage: boolean }) {
   return (
     <article className="bg-card flex flex-col gap-4 rounded-xl border p-4">
       <div className="flex items-start gap-3">
-        <ActorAvatar actor={{ type: "agent", id: agent.id, name: agent.name, avatar: agent.avatar }} className="size-8" />
+        <ActorAvatar actor={agentActor(agent)} className="size-8" />
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <div className="flex items-center gap-2">
             <h2 className="truncate font-medium">{agent.name}</h2>

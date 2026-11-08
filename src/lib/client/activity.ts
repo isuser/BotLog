@@ -1,3 +1,4 @@
+import { actorName, SOLO, type NameContext } from "./assignees";
 import { formatDate } from "./format";
 import { PRIORITY_LABELS, STATUS_LABELS, TYPE_LABELS } from "./task-labels";
 import type { Activity, Task } from "./types";
@@ -95,7 +96,8 @@ export function describeActivity(entry: Activity, names: NameLookup): string | n
 
 /**
  * Ids → names from what the panel already has loaded: the viewer, agents, the task's assignee,
- * and the project's labels, epics and columns.
+ * and the project's members, labels, epics and columns. `agents` come already labelled (with
+ * their owner in shared projects); `context` labels the current assignee the same way.
  */
 export function nameLookup(
   me: { id: string },
@@ -105,20 +107,26 @@ export function nameLookup(
     labels = [],
     epics = [],
     columns = [],
+    members = [],
+    context = SOLO,
   }: {
     labels?: { id: string; name: string }[];
     epics?: { id: string; title: string }[];
     columns?: { id: string; name: string }[];
+    members?: { id: string; name: string; email: string }[];
+    context?: NameContext;
   } = {},
 ): NameLookup {
-  const known = new Map<string, string>([[`user:${me.id}`, "you"]]);
+  const known = new Map<string, string>();
+  for (const member of members) known.set(`user:${member.id}`, member.name || member.email);
+  known.set(`user:${me.id}`, "you");
   for (const agent of agents) known.set(`agent:${agent.id}`, agent.name);
   for (const label of labels) known.set(`label:${label.id}`, label.name);
   for (const epic of epics) known.set(`epic:${epic.id}`, epic.title);
   for (const column of columns) known.set(`column:${column.id}`, column.name);
   if (task.epic) known.set(`epic:${task.epic.id}`, task.epic.title);
   if (task.assignee && !known.has(`${task.assignee.type}:${task.assignee.id}`)) {
-    known.set(`${task.assignee.type}:${task.assignee.id}`, task.assignee.name || "someone");
+    known.set(`${task.assignee.type}:${task.assignee.id}`, actorName(task.assignee, context) || "someone");
   }
   return (type, id) => known.get(`${type}:${id}`);
 }

@@ -144,6 +144,8 @@ describe.skipIf(!keyLive)("tools", () => {
       id: task.short_id.toLowerCase(),
     });
     expect(read.data).toMatchObject({ id: task.id, comments: [], title: "Write the docs" });
+    // Agents come with their owner, so an agent can tell whose agent is assigned or did what.
+    expect(read.data.assignee).toMatchObject({ type: "agent", id: agentId, owner: { id: alice.id } });
     expect(read.data.recent_activity.map((a) => a.action)).toContain("created");
 
     const started = await tool<{ data: Task }>("move_task", { id: task.short_id, version: read.data.version, status: "in_progress" });
@@ -155,9 +157,12 @@ describe.skipIf(!keyLive)("tools", () => {
     const done = await tool<{ data: Task }>("move_task", { id: task.short_id, version: started.data.version, status: "done" });
     expect(done.data.status).toBe("done");
 
-    const after = await tool<{ data: { comments: { body: string }[]; recent_activity: { action: string; actor: { type: string } }[] } }>("get_task", { id: task.id });
+    const after = await tool<{
+      data: { comments: { body: string; author: unknown }[]; recent_activity: { action: string; actor: { type: string } }[] };
+    }>("get_task", { id: task.id });
     expect(after.data.comments.map((c) => c.body)).toEqual(["Done: wrote the docs."]);
-    expect(after.data.recent_activity[0]).toMatchObject({ action: "moved", actor: { type: "ai" } });
+    expect(after.data.comments[0].author).toMatchObject({ type: "agent", owner: { id: alice.id } });
+    expect(after.data.recent_activity[0]).toMatchObject({ action: "moved", actor: { type: "ai", owner: { id: alice.id } } });
   });
 
   test("edit_comment fixes the agent's own comments only", async () => {

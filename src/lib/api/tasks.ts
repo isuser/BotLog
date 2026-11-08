@@ -10,7 +10,7 @@ export const TASK_SELECT = `
   project:project!inner(key, workspace:workspace!inner(handle)),
   column:board_column!task_column_fkey(id, name),
   assignee_user:profile!task_assignee_user_id_fkey(id, name, email),
-  assignee_agent:agent!task_assignee_agent_id_fkey(id, name, avatar),
+  assignee_agent:agent!task_assignee_agent_id_fkey(id, name, avatar, owner:profile!agent_owner_user_id_fkey(id, name)),
   epic:epic(id, title, status),
   task_labels:task_label(label:label(id, name, color))
 `;
@@ -19,7 +19,7 @@ export type TaskRow = Database["public"]["Tables"]["task"]["Row"] & {
   project: { key: string; workspace: { handle: string } };
   column: { id: string; name: string };
   assignee_user: { id: string; name: string; email: string } | null;
-  assignee_agent: { id: string; name: string; avatar: string | null } | null;
+  assignee_agent: { id: string; name: string; avatar: string | null; owner: { id: string; name: string } | null } | null;
   epic: { id: string; title: string; status: Database["public"]["Enums"]["epic_status"] } | null;
   // Through the join table: PostgREST can't use it as a many-to-many (its keys are composite).
   task_labels: { label: { id: string; name: string; color: string } }[];
