@@ -1,3 +1,6 @@
+/** Where Google sign-in goes afterwards: set when it starts, read once by /auth/callback. */
+export const NEXT_COOKIE = "botlog-next";
+
 /** Where to go after sign-in: only same-site paths, so `?next=` can't send users elsewhere. */
 export function safeRedirectPath(next: unknown, fallback = "/"): string {
   if (typeof next !== "string") return fallback;

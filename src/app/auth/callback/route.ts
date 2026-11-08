@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { isEmailAllowed } from "@/lib/auth/allowlist";
 import { googleSignInEnabled, oauthErrorCode } from "@/lib/auth/google";
+import { NEXT_COOKIE, safeRedirectPath } from "@/lib/auth/redirect";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -30,7 +31,10 @@ export async function GET(request: NextRequest) {
     return toSignIn("not_allowed");
   }
 
-  return redirectTo(request, "/");
+  // Back to where sign-in started (an invite link, say), checked again like ?next= is.
+  const response = redirectTo(request, safeRedirectPath(request.cookies.get(NEXT_COOKIE)?.value));
+  response.cookies.delete({ name: NEXT_COOKIE, path: "/auth/callback" });
+  return response;
 }
 
 function redirectTo(request: NextRequest, path: string) {

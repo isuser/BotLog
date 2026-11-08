@@ -14,6 +14,8 @@ import * as columnRoute from "@/app/api/v1/columns/[id]/route";
 import * as epicRestore from "@/app/api/v1/epics/[id]/restore/route";
 import * as commentRoute from "@/app/api/v1/comments/[id]/route";
 import * as epicRoute from "@/app/api/v1/epics/[id]/route";
+import * as inviteAccept from "@/app/api/v1/invites/accept/route";
+import * as invitePreview from "@/app/api/v1/invites/preview/route";
 import * as labelRoute from "@/app/api/v1/labels/[id]/route";
 import * as me from "@/app/api/v1/me/route";
 import * as meTasks from "@/app/api/v1/me/tasks/route";
@@ -21,6 +23,10 @@ import * as projectColumns from "@/app/api/v1/projects/[id]/columns/route";
 import * as projectEpics from "@/app/api/v1/projects/[id]/epics/route";
 import * as projectLabels from "@/app/api/v1/projects/[id]/labels/route";
 import * as projectExport from "@/app/api/v1/projects/[id]/export/route";
+import * as projectInvite from "@/app/api/v1/projects/[id]/invites/[inviteId]/route";
+import * as projectInvites from "@/app/api/v1/projects/[id]/invites/route";
+import * as projectMember from "@/app/api/v1/projects/[id]/members/[userId]/route";
+import * as projectMembers from "@/app/api/v1/projects/[id]/members/route";
 import * as projectRoute from "@/app/api/v1/projects/[id]/route";
 import * as projectTasks from "@/app/api/v1/projects/[id]/tasks/route";
 import * as projects from "@/app/api/v1/projects/route";
@@ -1030,5 +1036,149 @@ describe("shared projects", () => {
     const res = await call(me.GET, { token: dave.token });
     expect(res.status).toBe(200);
     expect(res.body.data).toMatchObject({ id: dave.id, theme: "lime", open_task_after_create: true });
+  });
+});
+
+describe("invites and members", () => {
+  // Erin owns INV; Frank and Gina join through invite links.
+  let erin: TestUser;
+  let frank: TestUser;
+  let gina: TestUser;
+  let projectId: string;
+  const P = "INV";
+
+  const invite = async (token: string, body: Record<string, unknown> = {}) =>
+    call(projectInvites.POST, { method: "POST", params: { id: projectId }, token, body });
+  const tokenOf = (url: string) => url.split("/invite#")[1];
+  const accept = (token: string, inviteToken: string) =>
+    call(inviteAccept.POST, { method: "POST", token, body: { token: inviteToken } });
+  const preview = (token: string, inviteToken: string) =>
+    call(invitePreview.POST, { method: "POST", token, body: { token: inviteToken } });
+
+  beforeAll(async () => {
+    [erin, frank, gina] = await Promise.all([createTestUser(), createTestUser(), createTestUser()]);
+    vi.stubEnv("ALLOWED_EMAILS", [alice, bob, erin, frank, gina].map((u) => u.email).join(","));
+    const res = await call(projects.POST, { method: "POST", token: erin.token, body: { name: "Invites", key: P } });
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+    expect(res.body.data.role).toBe("owner");
+    projectId = res.body.data.id;
+  });
+
+  afterAll(async () => {
+    await deleteTestUsers([erin, frank, gina].filter(Boolean).map((u) => u.id));
+  });
+
+  test("an invite link joins once, with its role, and shows the project only while it works", async () => {
+    const created = await invite(erin.token);
+    expect(created.status, JSON.stringify(created.body)).toBe(201);
+    expect(created.body.data).toMatchObject({ role: "member", used_at: null, revoked_at: null });
+    expect(created.body.data.url).toMatch(/^http:\/\/localhost\/invite#[A-Za-z0-9_-]{43}$/);
+    expect(created.body.data.url).toBe(`http://localhost/invite#${created.body.data.token}`);
+    const expiresIn = new Date(created.body.data.expires_at).getTime() - Date.now();
+    expect(expiresIn).toBeGreaterThan(55 * 60_000);
+    expect(expiresIn).toBeLessThanOrEqual(60 * 60_000);
+    const token = tokenOf(created.body.data.url);
+
+    const listed = await call(projectInvites.GET, { params: { id: projectId }, token: erin.token });
+    expect(listed.body.data.map((i: { id: string }) => i.id)).toContain(created.body.data.id);
+    expect(JSON.stringify(listed.body)).not.toContain(token);
+
+    const shown = await preview(frank.token, token);
+    expect(shown.status).toBe(200);
+    expect(shown.body.data).toMatchObject({ state: "valid", is_member: false, role: "member", project: { id: projectId, key: P } });
+
+    const joined = await accept(frank.token, token);
+    expect(joined.status, JSON.stringify(joined.body)).toBe(200);
+    expect(joined.body.data).toMatchObject({ id: projectId, role: "member" });
+
+    const again = await accept(gina.token, token);
+    expect(again.status).toBe(410);
+    expect(again.body.error.code).toBe("invite_used");
+    expect((await preview(gina.token, token)).body.data).toMatchObject({ state: "used", project: null });
+    expect((await call(projectRoute.GET, { params: { id: projectId }, token: gina.token })).status).toBe(404);
+  });
+
+  test("revoked and made-up links don't work", async () => {
+    const created = await invite(erin.token, { expires_in: "7d", role: "admin" });
+    expect(created.status, JSON.stringify(created.body)).toBe(201);
+    const revoked = await call(projectInvite.DELETE, {
+      method: "DELETE",
+      params: { id: projectId, inviteId: created.body.data.id },
+      token: erin.token,
+    });
+    expect(revoked.status).toBe(200);
+    expect(revoked.body.data.revoked_at).not.toBeNull();
+
+    const token = tokenOf(created.body.data.url);
+    expect((await accept(gina.token, token)).body.error.code).toBe("invite_revoked");
+    expect((await preview(gina.token, "x".repeat(43))).status).toBe(404);
+    expect((await accept(gina.token, "x".repeat(43))).status).toBe(404);
+    expect((await accept(gina.token, "short")).status).toBe(404);
+  });
+
+  test("only the owner and admins manage invites and roles; agent keys can't", async () => {
+    expect((await invite(frank.token)).status).toBe(403);
+    expect((await call(projectInvites.GET, { params: { id: projectId }, token: frank.token })).status).toBe(403);
+    const agentKeyToken = generateApiKey().key;
+    expect((await invite(agentKeyToken)).status).toBe(403);
+
+    const promote = await call(projectMember.PATCH, {
+      method: "PATCH",
+      params: { id: projectId, userId: frank.id },
+      token: erin.token,
+      body: { role: "admin" },
+    });
+    expect(promote.status, JSON.stringify(promote.body)).toBe(200);
+    expect(promote.body.data).toMatchObject({ id: frank.id, role: "admin" });
+
+    // Now an admin: Frank can invite, but can't touch the owner or make anyone owner.
+    const byAdmin = await invite(frank.token);
+    expect(byAdmin.status).toBe(201);
+    const ownerChange = await call(projectMember.PATCH, {
+      method: "PATCH",
+      params: { id: projectId, userId: erin.id },
+      token: frank.token,
+      body: { role: "member" },
+    });
+    expect(ownerChange.status).toBe(403);
+    const toOwner = await call(projectMember.PATCH, {
+      method: "PATCH",
+      params: { id: projectId, userId: frank.id },
+      token: erin.token,
+      body: { role: "owner" },
+    });
+    expect(toOwner.status).toBe(400);
+
+    // Gina joins through Frank's link.
+    expect((await accept(gina.token, tokenOf(byAdmin.body.data.url))).status).toBe(200);
+    const members = await call(projectMembers.GET, { params: { id: projectId }, token: gina.token });
+    expect(members.body.data.map((m: { id: string; role: string }) => [m.id, m.role])).toEqual([
+      [erin.id, "owner"],
+      [frank.id, "admin"],
+      [gina.id, "member"],
+    ]);
+  });
+
+  test("anyone but the owner leaves; owners and admins remove others", async () => {
+    const ownerLeaves = await call(projectMember.DELETE, { method: "DELETE", params: { id: projectId, userId: "me" }, token: erin.token });
+    expect(ownerLeaves.status).toBe(400);
+    const memberRemoves = await call(projectMember.DELETE, {
+      method: "DELETE",
+      params: { id: projectId, userId: frank.id },
+      token: gina.token,
+    });
+    expect(memberRemoves.status).toBe(403);
+
+    const removed = await call(projectMember.DELETE, {
+      method: "DELETE",
+      params: { id: projectId, userId: gina.id },
+      token: frank.token,
+    });
+    expect(removed.status, JSON.stringify(removed.body)).toBe(200);
+    expect((await call(projectRoute.GET, { params: { id: projectId }, token: gina.token })).status).toBe(404);
+
+    const left = await call(projectMember.DELETE, { method: "DELETE", params: { id: projectId, userId: "me" }, token: frank.token });
+    expect(left.status).toBe(200);
+    expect((await call(projectRoute.GET, { params: { id: projectId }, token: frank.token })).status).toBe(404);
   });
 });

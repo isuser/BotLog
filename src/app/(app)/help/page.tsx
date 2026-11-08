@@ -309,6 +309,13 @@ export default function HelpPage() {
               project, and is a <code>404</code> for everyone else.
             </li>
             <li>
+              Projects have members: <code>GET /projects/:key/members</code> lists them with their role (
+              <code>owner</code>, <code>admin</code> or <code>member</code>), and each project in{" "}
+              <code>GET /projects</code> has your <code>role</code>. Invite links (
+              <code>/projects/:key/invites</code>), accepting them and changing or removing members need a person,
+              not an agent key.
+            </li>
+            <li>
               Errors are always <code>{'{ "error": { "code", "message" } }'}</code>. Lists page with{" "}
               <code>?cursor=</code> and <code>next_cursor</code>.
             </li>

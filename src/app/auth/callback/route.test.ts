@@ -6,7 +6,8 @@ vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ auth }) }
 
 const { GET } = await import("./route");
 
-const callback = (query: string) => GET(new NextRequest(`https://botlog.example.com/auth/callback${query}`));
+const callback = (query: string, cookie?: string) =>
+  GET(new NextRequest(`https://botlog.example.com/auth/callback${query}`, cookie ? { headers: { cookie } } : undefined));
 const location = (res: Response) => res.headers.get("location");
 
 beforeEach(() => {
@@ -51,4 +52,14 @@ test("does nothing when Google sign-in is off", async () => {
   const res = await callback("?code=abc");
   expect(auth.exchangeCodeForSession).not.toHaveBeenCalled();
   expect(location(res)).toBe("https://botlog.example.com/sign-in?error=oauth");
+});
+
+test("goes back to where sign-in started, only within the site, and clears the cookie", async () => {
+  exchangeFor("ada@example.com");
+  const res = await callback("?code=abc", "botlog-next=%2Finvite%2Fabc123");
+  expect(location(res)).toBe("https://botlog.example.com/invite/abc123");
+  expect(res.headers.get("set-cookie")).toMatch(/botlog-next=;/);
+
+  exchangeFor("ada@example.com");
+  expect(location(await callback("?code=abc", "botlog-next=%2F%2Fevil.example.com"))).toBe("https://botlog.example.com/");
 });

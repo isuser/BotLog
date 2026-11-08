@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { signInErrorMessage } from "@/lib/auth/google";
+import { rememberInviteToken } from "@/lib/client/invite-token";
 import { signIn, signInWithGoogle, type SignInState } from "./actions";
 
 export function SignInForm({ google }: { google: boolean }) {
@@ -17,6 +18,9 @@ export function SignInForm({ google }: { google: boolean }) {
     email: "",
   });
   const redirectTo = state.redirectTo;
+
+  // Opened from an invite link while signed out: keep its token for the join page.
+  useEffect(rememberInviteToken, []);
 
   // Signed in: load the app as a new page, so nothing from an earlier session in this tab remains.
   useEffect(() => {
@@ -34,6 +38,7 @@ export function SignInForm({ google }: { google: boolean }) {
       {google && (
         <>
           <form action={signInWithGoogle}>
+            <input type="hidden" name="next" value={searchParams.get("next") ?? ""} />
             <GoogleButton />
           </form>
           <div className="text-muted-foreground flex items-center gap-3 text-xs">
