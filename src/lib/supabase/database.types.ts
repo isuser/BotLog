@@ -790,7 +790,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      accept_project_invite: { Args: { token_hash: string }; Returns: string }
+      accept_project_invite: { Args: { token: string }; Returns: string }
       attachment_orphans: {
         Args: { max_rows?: number }
         Returns: {
@@ -829,7 +829,7 @@ export type Database = {
         }[]
       }
       preview_project_invite: {
-        Args: { token_hash: string }
+        Args: { token: string }
         Returns: {
           expires_at: string
           inviter_name: string
