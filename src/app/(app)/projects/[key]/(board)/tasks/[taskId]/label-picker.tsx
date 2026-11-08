@@ -11,6 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { api, apiAll, errorMessage } from "@/lib/client/api";
 import { LABEL_COLORS } from "@/lib/client/task-labels";
 import type { Label, Task } from "@/lib/client/types";
+import { useTaskProjectSegment } from "@/lib/client/use-refs";
 import { cn } from "@/lib/utils";
 
 /**
@@ -28,7 +29,7 @@ export function LabelPicker({
   className: string;
   onChange: (labels: Task["labels"]) => Promise<boolean>;
 }) {
-  const labelsKey = `/projects/${task.project_key}/labels`;
+  const labelsKey = `/projects/${useTaskProjectSegment(task)}/labels`;
   const { data: labels, mutate } = useSWR(labelsKey, (path: string) => apiAll<Label>(path));
   const [query, setQuery] = useState("");
   const [creating, setCreating] = useState(false);

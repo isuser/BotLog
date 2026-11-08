@@ -8,9 +8,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { api, errorMessage } from "@/lib/client/api";
+import { api, ApiRequestError, errorMessage } from "@/lib/client/api";
 import { applyTheme, useTheme } from "@/lib/client/theme";
-import type { Profile } from "@/lib/client/types";
+import type { Profile, Workspace } from "@/lib/client/types";
+import { HANDLE_MAX, handleFormatProblem, normalizeHandle } from "@/lib/handle";
 import type { Theme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 
@@ -42,6 +43,7 @@ export function SettingsView() {
       ) : (
         <>
           <ProfileSection key={profile.name} profile={profile} onSave={save} />
+          <HandleSection />
           <ThemeSection saved={profile.theme} onSave={save} />
           <TasksSection profile={profile} onSave={save} />
         </>
@@ -96,6 +98,108 @@ function ProfileSection({
         <span className="text-muted-foreground text-sm">{profile.email}</span>
       </div>
     </section>
+  );
+}
+
+/**
+ * The workspace handle: the `ana` in `ana/BOT-42`. "Your handle" while each workspace has one
+ * person. Saves on blur or Enter; format, reserved and taken errors show under the field.
+ */
+function HandleSection() {
+  const { data: workspace, error: loadError, mutate } = useSWR("/workspace", (path: string) =>
+    api<{ data: Workspace }>(path).then((r) => r.data),
+  );
+
+  return (
+    <section className="flex flex-col gap-4" aria-labelledby="settings-handle">
+      <h2 id="settings-handle" className="text-sm font-semibold">
+        Your handle
+      </h2>
+      {loadError ? (
+        <p className="text-danger text-sm">Couldn&apos;t load your handle: {loadError.message}</p>
+      ) : !workspace ? (
+        <Skeleton className="h-16 w-full max-w-md" />
+      ) : (
+        <HandleField
+          key={workspace.handle}
+          saved={workspace.handle}
+          onSave={async (handle) => {
+            const { data } = await api<{ data: Workspace }>("/workspace", { method: "PATCH", json: { handle } });
+            await mutate(data, { revalidate: false });
+          }}
+        />
+      )}
+    </section>
+  );
+}
+
+function HandleField({ saved, onSave }: { saved: string; onSave: (handle: string) => Promise<void> }) {
+  const [handle, setHandle] = useState(saved);
+  const [problem, setProblem] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  // The example follows what's typed, but not a handle that was just refused.
+  const shown = (!problem && normalizeHandle(handle)) || saved;
+
+  async function commit() {
+    const next = normalizeHandle(handle);
+    if (next === saved) {
+      setHandle(saved);
+      return setProblem(null);
+    }
+    const format = handleFormatProblem(next);
+    if (format) return setProblem(format);
+    setSaving(true);
+    try {
+      await onSave(next);
+      setProblem(null);
+      toast("Handle saved");
+    } catch (error) {
+      // Taken, reserved or badly formed: say so under the field and keep what they typed.
+      if (error instanceof ApiRequestError && error.status < 500) setProblem(error.message);
+      else toast.error(errorMessage(error));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="grid max-w-md gap-2">
+      <Label htmlFor="settings-handle-input">Handle</Label>
+      <Input
+        id="settings-handle-input"
+        value={handle}
+        maxLength={HANDLE_MAX}
+        autoCapitalize="none"
+        autoCorrect="off"
+        spellCheck={false}
+        disabled={saving}
+        aria-invalid={problem ? true : undefined}
+        aria-describedby="settings-handle-help"
+        onChange={(e) => {
+          setHandle(e.target.value);
+          setProblem(null);
+        }}
+        onBlur={() => void commit()}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") e.currentTarget.blur();
+          if (e.key === "Escape") {
+            setHandle(saved);
+            setProblem(null);
+          }
+        }}
+      />
+      {problem && (
+        <p role="alert" className="text-danger text-xs">
+          {problem}
+        </p>
+      )}
+      <p id="settings-handle-help" className="text-muted-foreground text-xs">
+        When someone you share projects with also has a project with the same key, yours show as{" "}
+        <span className="text-foreground font-mono">{shown}/BOT</span> and{" "}
+        <span className="text-foreground font-mono">{shown}/BOT-42</span>. Lowercase letters, digits and dashes.
+        Changing it breaks links and references that use the old handle, and frees it for anyone to take.
+      </p>
+    </div>
   );
 }
 

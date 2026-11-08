@@ -29,6 +29,8 @@ export function serializeTask(row: TaskRow) {
   return {
     id: row.id,
     short_id: shortId(row.project.key, row.number),
+    /** Always unambiguous (`ana/BOT-42`); use it when the caller can see another project with the same key. */
+    full_id: fullForm(row.project.workspace.handle, shortId(row.project.key, row.number)),
     project_id: row.project_id,
     project_key: row.project.key,
     number: row.number,

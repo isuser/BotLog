@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { TaskList, TaskListSkeleton } from "./task-list";
+import { normalizeSegment } from "@/lib/client/refs";
 
 /**
  * The list lives in the layout, like the board, so it stays mounted (with its sort and scroll)
@@ -19,5 +20,5 @@ export default function ListLayout({ children, params }: LayoutProps<"/projects/
 
 async function ListForKey({ params }: Pick<LayoutProps<"/projects/[key]/list">, "params">) {
   const { key } = await params;
-  return <TaskList projectKey={key.toUpperCase()} />;
+  return <TaskList projectKey={normalizeSegment(key)} />;
 }

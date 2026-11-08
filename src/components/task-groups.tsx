@@ -11,8 +11,10 @@ import { Button } from "@/components/ui/button";
 import { COLUMNS, groupByStatus, taskHref } from "@/lib/client/board";
 import { formatDate } from "@/lib/client/format";
 import { PRIORITY_BADGE, STATUS_COLORS, TYPE_BADGE } from "@/lib/client/task-labels";
+import { taskLabel } from "@/lib/client/refs";
 import type { Task } from "@/lib/client/types";
 import { useProjectPeople } from "@/lib/client/use-project-people";
+import { useFullFormFor } from "@/lib/client/use-refs";
 import { cn } from "@/lib/utils";
 
 /**
@@ -100,18 +102,19 @@ function TaskRow({
   const { name } = useProjectPeople(task.project_id);
   const type = TYPE_BADGE[task.type];
   const priority = PRIORITY_BADGE[task.priority];
+  const full = useFullFormFor()(task.project_key);
   const overdue = task.due_date && task.status !== "done" && task.due_date < new Date().toISOString().slice(0, 10);
 
   return (
     <li className="group flex items-center">
       <Link
-        href={taskHref(task)}
+        href={taskHref(task, "board", full)}
         className={cn(
           "hover:bg-accent/50 flex min-w-0 flex-1 items-center gap-3 px-3 py-2 text-sm",
           task.status === "done" && "opacity-70",
         )}
       >
-        <span className="text-muted-foreground w-16 shrink-0 font-mono text-xs">{task.short_id}</span>
+        <span className="text-muted-foreground min-w-16 shrink-0 font-mono text-xs">{taskLabel(task, full)}</span>
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="truncate">{task.title}</span>
           {showDetails && (task.epic || task.due_date) && (
@@ -146,7 +149,7 @@ function TaskRow({
         <Button
           variant="ghost"
           size="icon-sm"
-          aria-label={`${removeLabel}: ${task.short_id}`}
+          aria-label={`${removeLabel}: ${taskLabel(task, full)}`}
           title={removeLabel}
           className="text-muted-foreground mr-1 shrink-0 opacity-60 group-hover:opacity-100"
           onClick={() => onRemove(task)}

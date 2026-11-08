@@ -45,6 +45,16 @@ export async function apiAll<T>(path: string): Promise<T[]> {
   return items;
 }
 
+/**
+ * The full forms (`ana/BOT`, `pedro/BOT`) an `ambiguous` error lists: a bare key or short ID
+ * that matches several projects the viewer can see. Null for any other error.
+ */
+export function ambiguousMatches(error: unknown): string[] | null {
+  if (!(error instanceof ApiRequestError) || error.code !== "ambiguous") return null;
+  const matches = (error.details as unknown as { matches?: unknown } | undefined)?.matches;
+  return Array.isArray(matches) ? matches.filter((m): m is string => typeof m === "string") : null;
+}
+
 export const isConflict = (error: unknown) => error instanceof ApiRequestError && error.status === 409;
 
 /** A message for the user, listing which fields were invalid when the API says so. */

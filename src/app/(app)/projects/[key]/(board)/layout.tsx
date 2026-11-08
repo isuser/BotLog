@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { Board, BoardSkeleton } from "./board";
+import { normalizeSegment } from "@/lib/client/refs";
 
 /**
  * The board lives in the layout, so it stays mounted (with its scroll position) while a
@@ -19,5 +20,5 @@ export default function ProjectLayout({ children, params }: LayoutProps<"/projec
 
 async function BoardForKey({ params }: Pick<LayoutProps<"/projects/[key]">, "params">) {
   const { key } = await params;
-  return <Board projectKey={key.toUpperCase()} />;
+  return <Board projectKey={normalizeSegment(key)} />;
 }

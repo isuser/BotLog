@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { EpicView } from "./epic-view";
+import { normalizeSegment } from "@/lib/client/refs";
 
 export const metadata: Metadata = { title: "Epic · Botlog" };
 
@@ -15,5 +16,5 @@ export default function EpicPage({ params }: PageProps<"/projects/[key]/epics/[e
 
 async function EpicForRoute({ params }: Pick<PageProps<"/projects/[key]/epics/[epicId]">, "params">) {
   const { key, epicId } = await params;
-  return <EpicView projectKey={key.toUpperCase()} epicId={decodeURIComponent(epicId)} />;
+  return <EpicView projectKey={normalizeSegment(key)} epicId={decodeURIComponent(epicId)} />;
 }

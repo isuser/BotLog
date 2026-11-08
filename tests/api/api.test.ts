@@ -38,6 +38,7 @@ import * as taskMove from "@/app/api/v1/tasks/[id]/move/route";
 import * as taskRestore from "@/app/api/v1/tasks/[id]/restore/route";
 import * as taskRoute from "@/app/api/v1/tasks/[id]/route";
 import * as tasksRoute from "@/app/api/v1/tasks/route";
+import * as workspaceRoute from "@/app/api/v1/workspace/route";
 import { generateApiKey } from "@/lib/api/api-keys";
 import { adminClient, call, createTestUser, deleteTestUsers, signingKeyIsLive, type TestUser } from "./harness";
 
@@ -1225,5 +1226,88 @@ describe("invites and members", () => {
     const left = await call(projectMember.DELETE, { method: "DELETE", params: { id: projectId, userId: "me" }, token: frank.token });
     expect(left.status).toBe(200);
     expect((await call(projectRoute.GET, { params: { id: projectId }, token: frank.token })).status).toBe(404);
+  });
+});
+
+describe("workspace handles and full forms", () => {
+  // Hana and Ivan each have a project keyed HND; Ivan is also a member of Hana's.
+  let hana: TestUser;
+  let ivan: TestUser;
+  const handleOf = async (token: string) => (await call(workspaceRoute.GET, { token })).body.data?.handle as string;
+  const setHandle = (token: string, handle: unknown) => call(workspaceRoute.PATCH, { method: "PATCH", token, body: { handle } });
+
+  beforeAll(async () => {
+    [hana, ivan] = await Promise.all([createTestUser(), createTestUser()]);
+    vi.stubEnv("ALLOWED_EMAILS", [alice, bob, hana, ivan].map((u) => u.email).join(","));
+    const ids: string[] = [];
+    for (const user of [hana, ivan]) {
+      const res = await call(projects.POST, { method: "POST", token: user.token, body: { name: "Handles", key: "hnd" } });
+      expect(res.status, JSON.stringify(res.body)).toBe(201);
+      ids.push(res.body.data.id);
+    }
+    const { error } = await adminClient().from("project_member").insert({ project_id: ids[0], user_id: ivan.id, role: "member" });
+    if (error) throw error;
+  });
+
+  afterAll(async () => {
+    await deleteTestUsers([hana, ivan].filter(Boolean).map((u) => u.id));
+  });
+
+  test("projects and tasks carry their full form, which picks one", async () => {
+    const list = await call(projects.GET, { token: ivan.token });
+    expect(list.status).toBe(200);
+    const hnd = (list.body.data as { key: string; handle: string; full_key: string; role: string }[]).filter((p) => p.key === "HND");
+    expect(hnd).toHaveLength(2);
+    for (const p of hnd) expect(p.full_key).toBe(`${p.handle}/HND`);
+
+    const hanas = hnd.find((p) => p.role !== "owner")!.full_key;
+    const task = (await createTask({ title: "Full" }, ivan.token, hanas)) as Task & { full_id: string };
+    expect(task.full_id).toBe(`${hanas}-${task.short_id.split("-")[1]}`);
+    const read = await call(taskRoute.GET, { params: { id: encodeURIComponent(task.full_id) }, token: ivan.token });
+    expect(read.status).toBe(200);
+    expect(read.body.data.full_id).toBe(task.full_id);
+    const one = await call(projectRoute.GET, { params: { id: encodeURIComponent(hanas) }, token: ivan.token });
+    expect(one.body.data.full_key).toBe(hanas);
+  });
+
+  // Needs migration 20261108214229_my_workspace (public.my_workspace()).
+  test("GET /workspace is your own, even when you can see others'", async () => {
+    const res = await call(workspaceRoute.GET, { token: ivan.token });
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    const own = (await call(projects.GET, { token: ivan.token })).body.data.find(
+      (p: { key: string; role: string }) => p.key === "HND" && p.role === "owner",
+    );
+    expect(res.body.data.handle).toBe(own.handle);
+  });
+
+  // Needs migration 20261108214229_my_workspace.
+  test("PATCH /workspace changes the handle; old full forms stop working", async () => {
+    const before = await handleOf(hana.token);
+    const next = `t-${crypto.randomUUID().slice(0, 8)}`;
+    const res = await setHandle(hana.token, `  ${next.toUpperCase()} `);
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    expect(res.body.data.handle).toBe(next);
+    expect((await call(projectRoute.GET, { params: { id: `${next}/HND` }, token: ivan.token })).status).toBe(200);
+    expect((await call(projectRoute.GET, { params: { id: `${before}/HND` }, token: ivan.token })).status).toBe(404);
+    // Saving the same handle again changes nothing.
+    expect((await setHandle(hana.token, next)).status).toBe(200);
+  });
+
+  // Needs migration 20261108214229_my_workspace.
+  test("taken, reserved and badly formed handles are clean errors", async () => {
+    const taken = await setHandle(ivan.token, await handleOf(hana.token));
+    expect([taken.status, taken.body.error?.code]).toEqual([409, "handle_taken"]);
+    const reserved = await setHandle(ivan.token, "settings");
+    expect([reserved.status, reserved.body.error?.message]).toEqual([400, "This handle is reserved. Pick another one."]);
+    for (const bad of ["a", "-ab", "a_b", "x".repeat(31), 42]) {
+      expect((await setHandle(ivan.token, bad)).status, String(bad)).toBe(400);
+    }
+  });
+
+  test.skipIf(!keyLive)("agent keys can't change the handle", async () => {
+    const agent = await call(agents.POST, { method: "POST", token: ivan.token, body: { name: "Handle bot" } });
+    const key = (await call(agentKeys.POST, { method: "POST", params: { id: agent.body.data.id }, token: ivan.token, body: { name: "k" } }))
+      .body.data.key;
+    expect((await setHandle(key, "agent-handle")).status).toBe(403);
   });
 });

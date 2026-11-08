@@ -1,3 +1,4 @@
+import { taskProjectSegment, taskSegment } from "./refs";
 import type { BoardColumn, Task, TaskStatus } from "./types";
 
 export const COLUMNS: { status: TaskStatus; title: string }[] = [
@@ -151,6 +152,10 @@ export function syncTask(tasks: Task[], task: Task): Task[] {
 /** Which project page a task panel opens over. */
 export type TaskView = "board" | "backlog" | "list";
 
-/** A task's URL, open over its project's board (the shareable link), backlog or list. */
-export const taskHref = (task: Pick<Task, "project_key" | "short_id">, view: TaskView = "board") =>
-  `/projects/${task.project_key}${view === "board" ? "" : `/${view}`}/tasks/${task.short_id}`;
+/**
+ * A task's URL, open over its project's board (the shareable link), backlog or list. `full`
+ * uses the full form (`/projects/ana%2FBOT/tasks/ana%2FBOT-42`), for viewers who see two
+ * projects with the same key.
+ */
+export const taskHref = (task: Pick<Task, "project_key" | "short_id" | "full_id">, view: TaskView = "board", full = false) =>
+  `/projects/${taskProjectSegment(task, full)}${view === "board" ? "" : `/${view}`}/tasks/${taskSegment(task, full)}`;

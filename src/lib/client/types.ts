@@ -11,6 +11,7 @@ import type { serializeProfile } from "@/lib/api/profile";
 import type { serializeProject } from "@/lib/api/projects";
 import type { EPIC_STATUSES, TASK_STATUSES } from "@/lib/api/schemas";
 import type { serializeTask } from "@/lib/api/tasks";
+import type { serializeWorkspace } from "@/lib/api/workspace";
 
 // The shapes the API returns, taken from its serializers so client and server can't drift.
 export type Project = ReturnType<typeof serializeProject>;
@@ -26,6 +27,8 @@ export type Epic = ReturnType<typeof serializeEpic>;
 export type EpicStatus = (typeof EPIC_STATUSES)[number];
 export type Label = ReturnType<typeof serializeLabel>;
 export type Profile = ReturnType<typeof serializeProfile>;
+/** The caller's own workspace; its handle is the `ana` in `ana/BOT-42`. */
+export type Workspace = ReturnType<typeof serializeWorkspace>;
 export type Agent = ReturnType<typeof serializeAgent>;
 export type ApiKey = ReturnType<typeof serializeApiKey>;
 /** Someone in a project, with their role there. */

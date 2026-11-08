@@ -19,7 +19,7 @@ import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import useSWR from "swr";
 import { Skeleton } from "@/components/ui/skeleton";
-import { api, apiAll, ApiRequestError, isConflict } from "@/lib/client/api";
+import { api, apiAll, ApiRequestError, isConflict, ambiguousMatches } from "@/lib/client/api";
 import {
   BOARD_COLUMNS,
   flatten,
@@ -158,6 +158,8 @@ export function Board({ projectKey }: { projectKey: string }) {
     }
   }
 
+  // The project header lists the projects a bare, ambiguous key could mean.
+  if (ambiguousMatches(projectError)) return null;
   if (projectError || tasksError || columnsError) {
     const notFound = projectError instanceof ApiRequestError && projectError.status === 404;
     return (

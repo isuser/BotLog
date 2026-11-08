@@ -1,4 +1,5 @@
 import type { PostgrestError } from "@supabase/supabase-js";
+import { HANDLE_FORMAT_MESSAGE } from "@/lib/handle";
 
 const STATUS = {
   bad_request: 400,
@@ -13,6 +14,7 @@ const STATUS = {
   not_found: 404,
   conflict: 409,
   already_exists: 409,
+  handle_taken: 409,
   rate_limited: 429,
   internal: 500,
 } as const;
@@ -49,6 +51,9 @@ export const ambiguous = (ref: string, fullForms: string[]) =>
     { matches: fullForms },
   );
 
+/** Handles are unique across the instance, ignoring case. */
+export const handleTaken = () => new ApiError("handle_taken", "This handle is already taken. Pick another one.");
+
 export const versionConflict = () =>
   new ApiError(
     "conflict",
@@ -81,11 +86,17 @@ export function fromPostgrest(error: PostgrestError): ApiError {
     case "PGRST116":
       return new ApiError("not_found", "Not found.");
     case "23505":
+      if (error.message.includes("workspace_handle_idx")) return handleTaken();
       return new ApiError("already_exists", alreadyExistsMessage(error));
     case "23503":
       return new ApiError("invalid_reference", referenceMessage(error));
-    case "23502":
     case "23514":
+      if (error.message.includes("workspace_handle_not_reserved")) {
+        return new ApiError("bad_request", "This handle is reserved. Pick another one.");
+      }
+      if (error.message.includes("workspace_handle_format")) return new ApiError("bad_request", HANDLE_FORMAT_MESSAGE);
+      return new ApiError("bad_request", error.message);
+    case "23502":
     case "22001":
     case "22007":
     case "22023":

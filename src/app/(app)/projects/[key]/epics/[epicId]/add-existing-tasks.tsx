@@ -10,6 +10,7 @@ import { apiAll } from "@/lib/client/api";
 import { STATUS_COLORS } from "@/lib/client/task-labels";
 import type { Task } from "@/lib/client/types";
 import { cn } from "@/lib/utils";
+import { isFullSegment, taskLabel } from "@/lib/client/refs";
 
 const MAX_SHOWN = 50;
 
@@ -89,7 +90,7 @@ export function AddExistingTasks({
                   className="hover:bg-accent flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm disabled:opacity-50"
                 >
                   <span className={cn("size-2 shrink-0 rounded-full", STATUS_COLORS[task.status].dot)} />
-                  <span className="text-muted-foreground w-14 shrink-0 font-mono text-xs">{task.short_id}</span>
+                  <span className="text-muted-foreground min-w-14 shrink-0 font-mono text-xs">{taskLabel(task, isFullSegment(projectKey))}</span>
                   <span className="min-w-0 flex-1 truncate">{task.title}</span>
                   {task.epic && (
                     <span className="text-muted-foreground max-w-28 shrink-0 truncate text-xs" title={`In ${task.epic.title}`}>
