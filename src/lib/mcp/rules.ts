@@ -18,7 +18,7 @@ export const AGENT_RULES = [
 /** The MCP tools, in the order the Help page lists them. Kept in step with server.ts by a test. */
 export const AGENT_TOOLS: { name: string; does: string }[] = [
   { name: "list_my_tasks", does: "Tasks assigned to the agent, across projects. Where it finds work." },
-  { name: "list_projects", does: "Projects in the workspace, with task counts." },
+  { name: "list_projects", does: "Projects you can see (yours and ones shared with you), with task counts, your role and the owner." },
   { name: "list_tasks", does: "A project's tasks, filtered by status, column, type, priority, assignee, epic, label, or a search (q)." },
   { name: "get_task", does: "Everything about one task: fields, epic, labels, description, comments and recent activity." },
   { name: "create_task", does: "A new task in a column or status, optionally in an epic, with labels and an assignee." },

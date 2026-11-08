@@ -5,6 +5,7 @@ import {
   CheckSquareIcon,
   CircleHelpIcon,
   FolderIcon,
+  FolderSymlinkIcon,
   InboxIcon,
   KeyboardIcon,
   LayoutGridIcon,
@@ -25,6 +26,7 @@ import { api, apiAll, errorMessage } from "@/lib/client/api";
 import { taskHref } from "@/lib/client/board";
 import { STATUS_COLORS } from "@/lib/client/task-labels";
 import { applyTheme, useTheme } from "@/lib/client/theme";
+import { isShared } from "@/lib/client/projects";
 import type { Profile, Project, Task } from "@/lib/client/types";
 import { cn } from "@/lib/utils";
 
@@ -109,8 +111,16 @@ export function CommandMenu({
       run: () => go(taskHref(task)),
     });
   }
-  for (const project of (projects ?? []).filter((p) => !q || matches(`${p.name} ${p.key}`, q)).slice(0, q ? 5 : 8)) {
-    items.push({ id: `project:${project.key}`, group: "Projects", label: project.name, hint: project.key, icon: FolderIcon, run: () => go(`/projects/${project.key}`) });
+  // Shared projects also match their owner's name, and say whose they are.
+  for (const project of (projects ?? []).filter((p) => !q || matches(`${p.name} ${p.key} ${isShared(p) ? (p.owner?.name ?? "") : ""}`, q)).slice(0, q ? 5 : 8)) {
+    items.push({
+      id: `project:${project.key}`,
+      group: "Projects",
+      label: project.name,
+      hint: isShared(project) ? `${project.key} · ${project.owner ? `Shared by ${project.owner.name}` : "Shared"}` : project.key,
+      icon: isShared(project) ? FolderSymlinkIcon : FolderIcon,
+      run: () => go(`/projects/${project.key}`),
+    });
   }
   const pages: Omit<Item, "group">[] = [
     ...(projectKey
