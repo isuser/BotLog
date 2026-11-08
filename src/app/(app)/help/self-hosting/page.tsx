@@ -291,7 +291,9 @@ node --env-file=.env .next/standalone/server.js`}
 
           <h2 id="people">Adding people</h2>
           <p>
-            Each account gets its own workspace; people don&apos;t see each other&apos;s projects. To let someone in:
+            Each account gets its own workspace; people only see each other&apos;s projects when invited to one
+            with an invite link from the project&apos;s Settings. Invite links don&apos;t create accounts. To let
+            someone in:
           </p>
           <ol>
             <li>
