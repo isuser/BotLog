@@ -144,6 +144,19 @@ export const updateAgentSchema = z
   .strict()
   .refine((body) => Object.keys(body).length > 0, "Send at least one field to change.");
 
+/** A new invite link: the role it grants (never owner) and how long it works. */
+export const createInviteSchema = z
+  .object({
+    role: z.enum(["admin", "member"]).default("member"),
+    expires_in: z.enum(["1h", "24h", "7d"]).default("1h"),
+  })
+  .strict();
+
+/** An invite token, sent in the body so it never appears in a URL path or request log. */
+export const inviteTokenSchema = z.object({ token: z.string().max(200) }).strict();
+
+export const updateMemberSchema = z.object({ role: z.enum(["admin", "member"]) }).strict();
+
 export const agentListFilters = z.object({ archived: z.enum(["true", "false"]).optional() });
 
 export const createApiKeySchema = z.object({ name: z.string().trim().min(1).max(100) }).strict();

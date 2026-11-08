@@ -5,11 +5,11 @@ import { updateProjectSchema } from "@/lib/api/schemas";
 
 type Params = { id: string };
 
-export const GET = route<Params>(async ({ db, params }) => {
-  return json({ data: await getProject(db, params.id) });
+export const GET = route<Params>(async ({ db, params, actor }) => {
+  return json({ data: await getProject(db, params.id, actor.userId) });
 });
 
-export const PATCH = route<Params>(async ({ db, request, params }) => {
+export const PATCH = route<Params>(async ({ db, request, params, actor }) => {
   const raw = await request.clone().json().catch(() => null);
   if (raw && typeof raw === "object" && "key" in raw) {
     throw new ApiError("bad_request", "A project's key can't be changed, so its short IDs stay stable.");
@@ -21,5 +21,5 @@ export const PATCH = route<Params>(async ({ db, request, params }) => {
   // The caller can see the project (resolveProjectId found it) but RLS let nothing through:
   // they're a member, and only the owner and admins change projects.
   if (!data.length) throw new ApiError("forbidden", "Only the project owner or an admin can change this project.");
-  return json({ data: await getProject(db, id) });
+  return json({ data: await getProject(db, id, actor.userId) });
 });

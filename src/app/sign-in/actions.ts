@@ -1,10 +1,10 @@
 "use server";
 
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { isEmailAllowed } from "@/lib/auth/allowlist";
 import { googleSignInEnabled } from "@/lib/auth/google";
-import { safeRedirectPath } from "@/lib/auth/redirect";
+import { NEXT_COOKIE, safeRedirectPath } from "@/lib/auth/redirect";
 import { createClient } from "@/lib/supabase/server";
 
 /** `redirectTo` is set once signed in: the form then loads it as a new page. */
@@ -34,14 +34,22 @@ export async function signIn(_prev: SignInState, formData: FormData): Promise<Si
 }
 
 /** Starts "Continue with Google": Supabase sends the browser to Google, then to /auth/callback. */
-export async function signInWithGoogle() {
+export async function signInWithGoogle(formData: FormData) {
   if (!googleSignInEnabled()) redirect("/sign-in");
 
   // Server Actions only run for same-origin requests, so Origin is this site's address.
   const origin = (await headers()).get("origin");
   if (!origin) redirect("/sign-in?error=oauth");
-  // No ?next: the URL must match Supabase's Redirect URLs exactly, so Google sign-in lands on /.
+  // No ?next: the URL must match Supabase's Redirect URLs exactly. Where to go afterwards (an
+  // invite link, say) waits in a short-lived cookie that only the callback reads.
   const callback = new URL("/auth/callback", origin);
+  const next = safeRedirectPath(formData.get("next"), "");
+  const jar = await cookies();
+  if (next) {
+    jar.set(NEXT_COOKIE, next, { httpOnly: true, secure: true, sameSite: "lax", path: "/auth/callback", maxAge: 600 });
+  } else {
+    jar.delete({ name: NEXT_COOKIE, path: "/auth/callback" });
+  }
 
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signInWithOAuth({

@@ -4,7 +4,9 @@ import type { serializeAttachment } from "@/lib/api/attachments";
 import type { serializeColumn } from "@/lib/api/columns";
 import type { serializeComment } from "@/lib/api/comments";
 import type { serializeEpic } from "@/lib/api/epics";
+import type { serializeInvite, serializeInvitePreview } from "@/lib/api/invites";
 import type { serializeLabel } from "@/lib/api/labels";
+import type { serializeMember } from "@/lib/api/members";
 import type { serializeProfile } from "@/lib/api/profile";
 import type { serializeProject } from "@/lib/api/projects";
 import type { EPIC_STATUSES, TASK_STATUSES } from "@/lib/api/schemas";
@@ -26,5 +28,12 @@ export type Label = ReturnType<typeof serializeLabel>;
 export type Profile = ReturnType<typeof serializeProfile>;
 export type Agent = ReturnType<typeof serializeAgent>;
 export type ApiKey = ReturnType<typeof serializeApiKey>;
+/** Someone in a project, with their role there. */
+export type Member = ReturnType<typeof serializeMember>;
+export type Invite = ReturnType<typeof serializeInvite>;
+/** Only the create response has the token and the link with it. */
+export type NewInvite = Invite & { token: string; url: string };
+/** What the join page shows for an invite link. */
+export type InvitePreview = ReturnType<typeof serializeInvitePreview>;
 /** Only the create response has the full key. */
 export type NewApiKey = ApiKey & { key: string };
