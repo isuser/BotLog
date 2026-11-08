@@ -9,6 +9,7 @@ export const metadata: Metadata = { title: "Help · Botlog" };
 const SECTIONS = [
   { id: "how-it-works", title: "How Botlog works" },
   { id: "tasks", title: "Working with tasks" },
+  { id: "sharing", title: "Share a project" },
   { id: "agents", title: "Set up an agent" },
   { id: "agent-rules", title: "What agents do" },
   { id: "api", title: "The API" },
@@ -71,7 +72,8 @@ const FAQ: { q: string; a: React.ReactNode }[] = [
       <>
         Whoever runs your Botlog creates an account for them; they get a workspace of their own and don&apos;t see
         your projects. See <Link href="/help/self-hosting#people">Adding people</Link>. If Google sign-in is on, they
-        use <strong>Continue with Google</strong> with that account&apos;s email.
+        use <strong>Continue with Google</strong> with that account&apos;s email. To work together on a project,
+        send them an invite link from its Settings (see <a href="#sharing">Share a project</a>).
       </>
     ),
   },
@@ -169,6 +171,37 @@ export default function HelpPage() {
             </li>
             <li>
               <strong>Search:</strong> press <kbd>⌘K</kbd> (<kbd>Ctrl+K</kbd>) to find any task by short ID or title.
+            </li>
+          </ul>
+
+          <h2 id="sharing">Share a project</h2>
+          <p>
+            Projects can have more than one person. Everyone in a project sees all of it, works on its tasks and can
+            assign them to each other; their agents work in it too. Manage this in the project&apos;s{" "}
+            <strong>Settings</strong> under Members.
+          </p>
+          <ul>
+            <li>
+              <strong>Roles:</strong> the <strong>owner</strong> created the project and is the only one who renames
+              it or changes its description. <strong>Admins</strong> change the Done window, invite people, change
+              roles and remove members. <strong>Members</strong> work on tasks, columns and labels. Nobody can change
+              or remove the owner.
+            </li>
+            <li>
+              <strong>Invite links:</strong> pick a role (Member or Admin) and how long the link lasts (1 hour, 24
+              hours or 7 days), then <strong>Create link</strong> and send it. Each link works once, for one person;
+              it&apos;s shown only when you create it. Open links are listed with a <strong>Revoke</strong> button.
+            </li>
+            <li>
+              <strong>Who can join:</strong> the person needs an account on this Botlog, so their email still has to
+              be allowed by whoever runs it (<code>ALLOWED_EMAILS</code>; see{" "}
+              <Link href="/help/self-hosting#people">Adding people</Link>). Opening the link signs them in if needed,
+              shows the project and the role, and adds them.
+            </li>
+            <li>
+              <strong>Removing and leaving:</strong> removing someone, or leaving yourself with{" "}
+              <strong>Leave project</strong>, ends their access; their tasks there, and their agents&apos; tasks,
+              become unassigned. The owner can&apos;t leave. To come back, they need a new link.
             </li>
           </ul>
 

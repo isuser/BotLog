@@ -36,10 +36,12 @@ import { fullDate, timeAgo } from "@/lib/client/format";
 import { LABEL_COLORS, STATUS_COLORS, STATUS_LABELS } from "@/lib/client/task-labels";
 import type { BoardColumn, Epic, Label, Project, Task } from "@/lib/client/types";
 import { cn } from "@/lib/utils";
+import { MembersSection } from "./members-section";
 
 /**
  * A project's settings: its name and description, the board's Done window and columns, its
- * labels, and its archived tasks and epics.
+ * members and invite links, its labels, and its archived tasks and epics. Only the owner
+ * renames it; the owner and admins change the Done window and manage members.
  */
 export function ProjectSettingsView({ projectKey }: { projectKey: string }) {
   const { data: project } = useSWR(`/projects/${projectKey}`, (path: string) =>
@@ -53,6 +55,7 @@ export function ProjectSettingsView({ projectKey }: { projectKey: string }) {
         {project ? <GeneralSection key={`general:${project.updated_at}`} project={project} /> : <Skeleton className="h-40 w-full" />}
         {project && <BoardSection key={`board:${project.updated_at}`} project={project} />}
         <ColumnsSection projectKey={projectKey} />
+        {project ? <MembersSection project={project} /> : <Skeleton className="h-24 w-full" />}
         <LabelsSection projectKey={projectKey} />
         <ArchivedSection projectKey={projectKey} />
         <Section
@@ -90,6 +93,7 @@ function GeneralSection({ project }: { project: Project }) {
   const [description, setDescription] = useState(project.description);
   const [saving, setSaving] = useState(false);
   const changed = name.trim() !== project.name || description !== project.description;
+  const owner = project.role === "owner";
 
   async function save(event: React.FormEvent) {
     event.preventDefault();
@@ -110,12 +114,27 @@ function GeneralSection({ project }: { project: Project }) {
   }
 
   return (
-    <Section id="settings-general" title="General" description="The key can't change: it's part of every task ID.">
+    <Section
+      id="settings-general"
+      title="General"
+      description={
+        owner
+          ? "The key can't change: it's part of every task ID."
+          : "Only the project owner can change the name and description. The key can't change: it's part of every task ID."
+      }
+    >
       <form onSubmit={save} className="flex flex-col gap-4">
         <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_8rem]">
           <div className="grid gap-2">
             <FieldLabel htmlFor="project-name">Name</FieldLabel>
-            <Input id="project-name" required maxLength={100} value={name} onChange={(e) => setName(e.target.value)} />
+            <Input
+              id="project-name"
+              required
+              maxLength={100}
+              disabled={!owner}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
           </div>
           <div className="grid gap-2">
             <FieldLabel htmlFor="project-key">Key</FieldLabel>
@@ -128,14 +147,17 @@ function GeneralSection({ project }: { project: Project }) {
             id="project-description"
             maxLength={10_000}
             rows={3}
+            disabled={!owner}
             value={description}
             placeholder="What this project is about"
             onChange={(e) => setDescription(e.target.value)}
           />
         </div>
-        <Button type="submit" className="self-start" disabled={!changed || !name.trim() || saving}>
-          {saving ? "Saving…" : "Save"}
-        </Button>
+        {owner && (
+          <Button type="submit" className="self-start" disabled={!changed || !name.trim() || saving}>
+            {saving ? "Saving…" : "Save"}
+          </Button>
+        )}
       </form>
     </Section>
   );
@@ -147,6 +169,7 @@ function BoardSection({ project }: { project: Project }) {
   const [saving, setSaving] = useState(false);
   const value = Number(days);
   const valid = Number.isInteger(value) && value >= 1 && value <= 365;
+  const manager = project.role === "owner" || project.role === "admin";
 
   async function save(event: React.FormEvent) {
     event.preventDefault();
@@ -169,7 +192,7 @@ function BoardSection({ project }: { project: Project }) {
     <Section
       id="settings-board"
       title="Board"
-      description="Finished tasks leave the board's Done column after this many days. They stay Done, and still show in List, search and to agents."
+      description={`Finished tasks leave the board's Done column after this many days. They stay Done, and still show in List, search and to agents.${manager ? "" : " The owner and admins can change it."}`}
     >
       <form onSubmit={save} className="flex flex-wrap items-end gap-3">
         <div className="grid gap-2">
@@ -181,14 +204,17 @@ function BoardSection({ project }: { project: Project }) {
             min={1}
             max={365}
             required
+            disabled={!manager}
             value={days}
             onChange={(e) => setDays(e.target.value)}
             className="w-28"
           />
         </div>
-        <Button type="submit" disabled={!valid || value === project.done_window_days || saving}>
-          {saving ? "Saving…" : "Save"}
-        </Button>
+        {manager && (
+          <Button type="submit" disabled={!valid || value === project.done_window_days || saving}>
+            {saving ? "Saving…" : "Save"}
+          </Button>
+        )}
       </form>
     </Section>
   );
