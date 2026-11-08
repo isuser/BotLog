@@ -4,13 +4,17 @@ import { json, parseBody, parseWith, route } from "@/lib/api/handler";
 import { decodeCursor, keysetFilter, page, parseLimit } from "@/lib/api/pagination";
 import { agentListFilters, createAgentSchema } from "@/lib/api/schemas";
 
-/** Agents in the workspace, oldest first. Archived ones only with `?archived=true`. */
-export const GET = route(async ({ db, url }) => {
+/**
+ * Agents in the workspace, oldest first. Archived ones only with `?archived=true`. RLS also
+ * shows agents of people you share a project with; they aren't listed here. Workspaces have
+ * one person, so the workspace's agents are the caller's (or the calling agent's owner's).
+ */
+export const GET = route(async ({ db, url, actor }) => {
   const { archived } = parseWith(agentListFilters, Object.fromEntries(url.searchParams));
   const limit = parseLimit(url.searchParams);
   const cursor = decodeCursor(url.searchParams, 2);
 
-  let query = db.from("agent").select(AGENT_SELECT);
+  let query = db.from("agent").select(AGENT_SELECT).eq("owner_user_id", actor.userId);
   query = archived === "true" ? query.not("archived_at", "is", null) : query.is("archived_at", null);
   if (cursor) query = query.or(keysetFilter(["created_at", "id"], cursor));
   const { data, error } = await query.order("created_at").order("id").limit(limit + 1);

@@ -517,6 +517,109 @@ export type Database = {
           },
         ]
       }
+      project_invite: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          expires_at: string
+          id: string
+          project_id: string
+          revoked_at: string | null
+          role: Database["public"]["Enums"]["project_role"]
+          token_hash: string
+          updated_at: string
+          used_at: string | null
+          used_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string
+          id?: string
+          project_id: string
+          revoked_at?: string | null
+          role?: Database["public"]["Enums"]["project_role"]
+          token_hash: string
+          updated_at?: string
+          used_at?: string | null
+          used_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string
+          id?: string
+          project_id?: string
+          revoked_at?: string | null
+          role?: Database["public"]["Enums"]["project_role"]
+          token_hash?: string
+          updated_at?: string
+          used_at?: string | null
+          used_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_invite_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_invite_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "project"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_invite_used_by_fkey"
+            columns: ["used_by"]
+            isOneToOne: false
+            referencedRelation: "profile"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_member: {
+        Row: {
+          created_at: string
+          project_id: string
+          role: Database["public"]["Enums"]["project_role"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          project_id: string
+          role?: Database["public"]["Enums"]["project_role"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          project_id?: string
+          role?: Database["public"]["Enums"]["project_role"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_member_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "project"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_member_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profile"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       task: {
         Row: {
           archived_at: string | null
@@ -661,18 +764,21 @@ export type Database = {
       workspace: {
         Row: {
           created_at: string
+          handle: string
           id: string
           name: string
           updated_at: string
         }
         Insert: {
           created_at?: string
+          handle: string
           id?: string
           name: string
           updated_at?: string
         }
         Update: {
           created_at?: string
+          handle?: string
           id?: string
           name?: string
           updated_at?: string
@@ -684,6 +790,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      accept_project_invite: { Args: { token_hash: string }; Returns: string }
       attachment_orphans: {
         Args: { max_rows?: number }
         Returns: {
@@ -709,6 +816,31 @@ export type Database = {
           reset_at: string
         }[]
       }
+      my_profile: {
+        Args: never
+        Returns: {
+          created_at: string
+          email: string
+          id: string
+          name: string
+          open_task_after_create: boolean
+          theme: string
+          updated_at: string
+        }[]
+      }
+      preview_project_invite: {
+        Args: { token_hash: string }
+        Returns: {
+          expires_at: string
+          inviter_name: string
+          is_member: boolean
+          project_id: string
+          project_key: string
+          project_name: string
+          role: Database["public"]["Enums"]["project_role"]
+          state: string
+        }[]
+      }
       set_task_labels: {
         Args: { p_label_ids: string[]; p_task_id: string; p_version: number }
         Returns: number
@@ -718,6 +850,7 @@ export type Database = {
       actor_type: "human" | "ai" | "system"
       board_column_kind: "backlog" | "todo" | "in_progress" | "done" | "custom"
       epic_status: "planned" | "in_progress" | "done" | "canceled"
+      project_role: "owner" | "admin" | "member"
       task_priority: "none" | "low" | "medium" | "high" | "urgent"
       task_status: "backlog" | "todo" | "in_progress" | "done"
       task_type: "feature" | "bug" | "improvement"
@@ -851,6 +984,7 @@ export const Constants = {
       actor_type: ["human", "ai", "system"],
       board_column_kind: ["backlog", "todo", "in_progress", "done", "custom"],
       epic_status: ["planned", "in_progress", "done", "canceled"],
+      project_role: ["owner", "admin", "member"],
       task_priority: ["none", "low", "medium", "high", "urgent"],
       task_status: ["backlog", "todo", "in_progress", "done"],
       task_type: ["feature", "bug", "improvement"],

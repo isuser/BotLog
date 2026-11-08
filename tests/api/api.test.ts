@@ -945,3 +945,88 @@ describe("agent management", () => {
     expect(forbidden.map((res) => res.status)).toEqual(forbidden.map(() => 403));
   });
 });
+
+describe("shared projects", () => {
+  // Two people with a project keyed SHR each; dave is also a member of carol's. Memberships
+  // are added with the service role until the invite API exists.
+  let carol: TestUser;
+  let dave: TestUser;
+  let carolHandle: string;
+  let daveHandle: string;
+
+  const handleOf = async (user: TestUser) => {
+    const { data, error } = await adminClient().from("profile").select("workspace:workspace!inner(handle)").eq("id", user.id).single();
+    if (error) throw error;
+    return (data.workspace as unknown as { handle: string }).handle;
+  };
+
+  beforeAll(async () => {
+    [carol, dave] = await Promise.all([createTestUser(), createTestUser()]);
+    for (const user of [carol, dave]) {
+      const res = await call(projects.POST, { method: "POST", token: user.token, body: { name: "Shared", key: "shr" } });
+      expect(res.status, JSON.stringify(res.body)).toBe(201);
+    }
+    [carolHandle, daveHandle] = await Promise.all([handleOf(carol), handleOf(dave)]);
+    const { data: project } = await adminClient()
+      .from("project")
+      .select("id, workspace:workspace!inner(handle)")
+      .eq("key", "SHR")
+      .eq("workspace.handle", carolHandle)
+      .single();
+    const { error } = await adminClient().from("project_member").insert({ project_id: project!.id, user_id: dave.id, role: "member" });
+    if (error) throw error;
+  });
+
+  afterAll(async () => {
+    await deleteTestUsers([carol, dave].filter(Boolean).map((u) => u.id));
+  });
+
+  test("a key that matches two visible projects is ambiguous; the full form picks one", async () => {
+    const bare = await call(projectRoute.GET, { params: { id: "SHR" }, token: dave.token });
+    expect(bare.status).toBe(400);
+    expect(bare.body.error.code).toBe("ambiguous");
+    expect([...bare.body.error.details.matches].sort()).toEqual([`${carolHandle}/SHR`, `${daveHandle}/SHR`].sort());
+
+    const full = await call(projectRoute.GET, { params: { id: `${carolHandle}/SHR` }, token: dave.token });
+    expect(full.status, JSON.stringify(full.body)).toBe(200);
+    // Carol sees only her own SHR, so the bare key still works for her.
+    const own = await call(projectRoute.GET, { params: { id: "SHR" }, token: carol.token });
+    expect(own.status).toBe(200);
+    expect(own.body.data.id).toBe(full.body.data.id);
+  });
+
+  test("short IDs work the same way", async () => {
+    const inCarols = await createTask({ title: "In Carol's" }, dave.token, `${carolHandle}/SHR`);
+    await createTask({ title: "In Dave's" }, dave.token, `${daveHandle}/SHR`);
+    const bare = await call(taskRoute.GET, { params: { id: inCarols.short_id }, token: dave.token });
+    expect(bare.status).toBe(400);
+    expect(bare.body.error.code).toBe("ambiguous");
+
+    const full = await call(taskRoute.GET, { params: { id: `${carolHandle}/${inCarols.short_id}` }, token: dave.token });
+    expect(full.status, JSON.stringify(full.body)).toBe(200);
+    expect(full.body.data.id).toBe(inCarols.id);
+    expect((await call(taskRoute.GET, { params: { id: encodeURIComponent(`${carolHandle}/${inCarols.short_id}`) }, token: dave.token })).status).toBe(200);
+  });
+
+  test("members can't rename the project; the agents list shows only your own agents", async () => {
+    const rename = await call(projectRoute.PATCH, {
+      method: "PATCH",
+      params: { id: `${carolHandle}/SHR` },
+      token: dave.token,
+      body: { name: "Mine now" },
+    });
+    expect(rename.status).not.toBe(200);
+
+    const created = await call(agents.POST, { method: "POST", token: carol.token, body: { name: "Carol's bot" } });
+    expect(created.status, JSON.stringify(created.body)).toBe(201);
+    const listed = await call(agents.GET, { token: dave.token });
+    expect(listed.status).toBe(200);
+    expect(listed.body.data).toEqual([]);
+  });
+
+  test("/me still returns your preferences", async () => {
+    const res = await call(me.GET, { token: dave.token });
+    expect(res.status).toBe(200);
+    expect(res.body.data).toMatchObject({ id: dave.id, theme: "lime", open_task_after_create: true });
+  });
+});

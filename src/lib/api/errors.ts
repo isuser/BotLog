@@ -4,6 +4,10 @@ const STATUS = {
   bad_request: 400,
   invalid_reference: 400,
   archived: 400,
+  ambiguous: 400,
+  invite_expired: 410,
+  invite_used: 410,
+  invite_revoked: 410,
   unauthorized: 401,
   forbidden: 403,
   not_found: 404,
@@ -33,6 +37,17 @@ export class ApiError extends Error {
 }
 
 export const notFound = (what: string) => new ApiError("not_found", `${what} not found.`);
+
+/**
+ * A project key or short ID that matches more than one project the caller can see (people
+ * sharing projects can use the same key). Never pick one: say which full forms work.
+ */
+export const ambiguous = (ref: string, fullForms: string[]) =>
+  new ApiError(
+    "ambiguous",
+    `${ref} matches ${fullForms.length} projects you can see. Use one of: ${fullForms.join(", ")}.`,
+    { matches: fullForms },
+  );
 
 export const versionConflict = () =>
   new ApiError(
@@ -77,7 +92,22 @@ export function fromPostgrest(error: PostgrestError): ApiError {
     case "22P02":
       return new ApiError("bad_request", error.message);
     case "42501":
-      return new ApiError("forbidden", "You don't have access to do this.");
+      // Messages raised by our own triggers are written for API users already.
+      return new ApiError(
+        "forbidden",
+        error.message.startsWith("Only the project owner") ? error.message : "You don't have access to do this.",
+      );
+    // Raised by accept_project_invite.
+    case "BLI01":
+      return new ApiError("not_found", "This invite link doesn't exist.");
+    case "BLI02":
+      return new ApiError("invite_expired", "This invite link has expired. Ask for a new one.");
+    case "BLI03":
+      return new ApiError("invite_used", "This invite link has already been used. Ask for a new one.");
+    case "BLI04":
+      return new ApiError("invite_revoked", "This invite link was revoked. Ask for a new one.");
+    case "BLI05":
+      return new ApiError("already_exists", "You're already a member of this project.");
     default:
       console.error("Unexpected database error", error);
       return new ApiError("internal", "Something went wrong.");

@@ -54,12 +54,13 @@ describe("new users", () => {
   test("get their own workspace and profile", async () => {
     const userId = await createUser(db, "ada.lovelace@example.com");
     const profile = await as(db, { sub: userId }, (tx) =>
-      one<{ email: string; name: string; workspace_id: string }>(tx, "select * from profile"),
+      one<{ email: string; name: string }>(tx, "select * from my_profile()"),
     );
     expect(profile).toMatchObject({ email: "ada.lovelace@example.com", name: "ada.lovelace" });
 
+    const { workspace_id } = await one<{ workspace_id: string }>(db, "select workspace_id from profile where id = $1", [userId]);
     const workspaces = await as(db, { sub: userId }, (tx) => tx.query("select id from workspace"));
-    expect(workspaces.rows).toEqual([{ id: profile.workspace_id }]);
+    expect(workspaces.rows).toEqual([{ id: workspace_id }]);
   });
 
   test("deleting a user deletes their workspace and everything in it", async () => {
@@ -240,31 +241,29 @@ describe("profile", () => {
   test("defaults to the Lime theme and lets its owner change theme and name", async () => {
     const { userId } = await setup();
     const updated = await as(db, { sub: userId }, (tx) =>
-      one<{ theme: string; name: string }>(
+      one<{ name: string }>(
         tx,
-        "update profile set theme = 'sandpaper', name = 'Ada' where id = $1 returning theme, name",
+        "update profile set theme = 'sandpaper', name = 'Ada' where id = $1 returning name",
         [userId],
       ),
     );
-    expect(updated).toEqual({ theme: "sandpaper", name: "Ada" });
+    const after = await as(db, { sub: userId }, (tx) => one<{ theme: string; name: string }>(tx, "select theme, name from my_profile()"));
+    expect({ updated, after }).toEqual({ updated: { name: "Ada" }, after: { theme: "sandpaper", name: "Ada" } });
 
     const fresh = await setup();
-    const profile = await as(db, { sub: fresh.userId }, (tx) => one<{ theme: string }>(tx, "select theme from profile"));
+    const profile = await as(db, { sub: fresh.userId }, (tx) => one<{ theme: string }>(tx, "select theme from my_profile()"));
     expect(profile.theme).toBe("lime");
   });
 
   test("opens tasks after creating them by default, and its owner can turn that off", async () => {
     const { userId } = await setup();
     const before = await as(db, { sub: userId }, (tx) =>
-      one<{ open_task_after_create: boolean }>(tx, "select open_task_after_create from profile"),
+      one<{ open_task_after_create: boolean }>(tx, "select open_task_after_create from my_profile()"),
     );
-    const after = await as(db, { sub: userId }, (tx) =>
-      one<{ open_task_after_create: boolean }>(
-        tx,
-        "update profile set open_task_after_create = false where id = $1 returning open_task_after_create",
-        [userId],
-      ),
-    );
+    const after = await as(db, { sub: userId }, async (tx) => {
+      await tx.query("update profile set open_task_after_create = false where id = $1", [userId]);
+      return one<{ open_task_after_create: boolean }>(tx, "select open_task_after_create from my_profile()");
+    });
     expect({ before: before.open_task_after_create, after: after.open_task_after_create }).toEqual({
       before: true,
       after: false,
@@ -417,7 +416,7 @@ describe("tasks", () => {
     ).rejects.toThrow(/foreign key/);
   });
 
-  test("assignees: one at most, and only from the same workspace", async () => {
+  test("assignees: one at most, and only members of the project", async () => {
     const { userId, projectId } = await setup();
     const outsider = await setup();
     const claims = await createAgent(userId);
@@ -433,7 +432,7 @@ describe("tasks", () => {
     await expect(insert("assignee_user_id", [userId])).resolves.toBeDefined();
     await expect(insert("assignee_agent_id", [claims.agent_id])).resolves.toBeDefined();
     await expect(insert("assignee_user_id, assignee_agent_id", [userId, claims.agent_id])).rejects.toThrow(/task_single_assignee/);
-    await expect(insert("assignee_user_id", [outsider.userId])).rejects.toThrow(/not in this workspace/);
+    await expect(insert("assignee_user_id", [outsider.userId])).rejects.toThrow(/not a member of this project/);
 
     await as(db, { sub: userId }, (tx) =>
       tx.query("update agent set archived_at = now() where id = $1", [claims.agent_id]),

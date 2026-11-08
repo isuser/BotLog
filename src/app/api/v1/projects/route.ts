@@ -4,7 +4,7 @@ import { decodeCursor, keysetFilter, page, parseLimit } from "@/lib/api/paginati
 import { getProject, PROJECT_SELECT, serializeProject, withTaskCounts } from "@/lib/api/projects";
 import { createProjectSchema } from "@/lib/api/schemas";
 
-/** Projects in the caller's workspace, oldest first, with task counts. */
+/** Projects the caller can see (their own and ones shared with them), oldest first, with task counts. */
 export const GET = route(async ({ db, url }) => {
   const limit = parseLimit(url.searchParams);
   const cursor = decodeCursor(url.searchParams, 2);
@@ -21,7 +21,8 @@ export const GET = route(async ({ db, url }) => {
 
 export const POST = route(async ({ db, request }) => {
   const body = await parseBody(request, createProjectSchema);
-  const { data, error } = await db.from("project").insert(body).select("key").single();
+  const { data, error } = await db.from("project").insert(body).select("id").single();
   if (error) throw fromPostgrest(error);
-  return json({ data: await getProject(db, data.key) }, 201);
+  // By id: the key alone can match a shared project with the same key.
+  return json({ data: await getProject(db, data.id) }, 201);
 });
