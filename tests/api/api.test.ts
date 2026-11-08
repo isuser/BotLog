@@ -962,6 +962,7 @@ describe("shared projects", () => {
 
   beforeAll(async () => {
     [carol, dave] = await Promise.all([createTestUser(), createTestUser()]);
+    vi.stubEnv("ALLOWED_EMAILS", [alice, bob, carol, dave].map((u) => u.email).join(","));
     for (const user of [carol, dave]) {
       const res = await call(projects.POST, { method: "POST", token: user.token, body: { name: "Shared", key: "shr" } });
       expect(res.status, JSON.stringify(res.body)).toBe(201);
@@ -1015,7 +1016,8 @@ describe("shared projects", () => {
       token: dave.token,
       body: { name: "Mine now" },
     });
-    expect(rename.status).not.toBe(200);
+    expect(rename.status).toBe(403);
+    expect((await call(projectRoute.GET, { params: { id: `${carolHandle}/SHR` }, token: carol.token })).body.data.name).toBe("Shared");
 
     const created = await call(agents.POST, { method: "POST", token: carol.token, body: { name: "Carol's bot" } });
     expect(created.status, JSON.stringify(created.body)).toBe(201);

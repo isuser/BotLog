@@ -16,7 +16,10 @@ export const PATCH = route<Params>(async ({ db, request, params }) => {
   }
   const body = await parseBody(request, updateProjectSchema);
   const id = await resolveProjectId(db, params.id);
-  const { error } = await db.from("project").update(body).eq("id", id);
+  const { data, error } = await db.from("project").update(body).eq("id", id).select("id");
   if (error) throw fromPostgrest(error);
+  // The caller can see the project (resolveProjectId found it) but RLS let nothing through:
+  // they're a member, and only the owner and admins change projects.
+  if (!data.length) throw new ApiError("forbidden", "Only the project owner or an admin can change this project.");
   return json({ data: await getProject(db, id) });
 });
