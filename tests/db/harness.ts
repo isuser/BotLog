@@ -6,12 +6,25 @@ import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 const root = join(import.meta.dirname, "..", "..");
 const migrationsDir = join(root, "supabase", "migrations");
 
-/** Fresh in-memory Postgres with the Supabase stub and every migration applied in order. */
-export async function createDb(): Promise<PGlite> {
+/**
+ * Fresh in-memory Postgres with the Supabase stub and every migration applied in order.
+ * With `before`, stops before the first migration whose file name starts with it (or sorts
+ * after it), so a test can seed data and then apply the rest with `applyMigrations`.
+ */
+export async function createDb(options: { before?: string } = {}): Promise<PGlite> {
   // Extensions Supabase provides that migrations use.
   const db = new PGlite({ extensions: { pg_trgm } });
   await db.exec(readFileSync(join(import.meta.dirname, "supabase-stub.sql"), "utf8"));
-  const files = readdirSync(migrationsDir).filter((f) => f.endsWith(".sql")).sort();
+  await applyMigrations(db, { before: options.before });
+  return db;
+}
+
+/** Applies the migrations from `from` (inclusive) up to `before` (exclusive), in order. */
+export async function applyMigrations(db: PGlite, range: { from?: string; before?: string } = {}) {
+  const files = readdirSync(migrationsDir)
+    .filter((f) => f.endsWith(".sql"))
+    .sort()
+    .filter((f) => (range.from === undefined || f >= range.from) && (range.before === undefined || f < range.before));
   for (const file of files) {
     try {
       await db.exec(readFileSync(join(migrationsDir, file), "utf8"));
@@ -19,7 +32,6 @@ export async function createDb(): Promise<PGlite> {
       throw new Error(`Migration ${file} failed: ${(error as Error).message}`);
     }
   }
-  return db;
 }
 
 /** Creates an auth user (as Supabase Auth would) and returns its id. */

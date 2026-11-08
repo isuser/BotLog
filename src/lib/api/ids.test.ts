@@ -12,6 +12,15 @@ describe("parseTaskRef", () => {
     expect(parseTaskRef("BOT%2D7")).toEqual({ key: "BOT", number: 7 });
   });
 
+  test("accepts the full form with a workspace handle, URL-encoded too", () => {
+    expect(parseTaskRef("pedro/BOT-42")).toEqual({ key: "BOT", number: 42, handle: "pedro" });
+    expect(parseTaskRef("Ana-B/bot-7")).toEqual({ key: "BOT", number: 7, handle: "ana-b" });
+    expect(parseTaskRef("pedro%2FBOT-42")).toEqual({ key: "BOT", number: 42, handle: "pedro" });
+    for (const ref of ["/BOT-1", "p/BOT-1", "a/b/BOT-1", "pedro/", "pe_dro/BOT-1"]) {
+      expect(() => parseTaskRef(ref)).toThrow(ApiError);
+    }
+  });
+
   test("rejects anything else with a helpful 400", () => {
     for (const ref of ["BOT", "42", "BOT-", "B-1", "BOT-1-2", "../etc", "BOT-1234567890", "ABCDE-1"]) {
       expect(() => parseTaskRef(ref)).toThrow(ApiError);
@@ -23,10 +32,11 @@ describe("parseProjectRef", () => {
   test("accepts UUIDs and keys in any case", () => {
     expect(parseProjectRef(uuid)).toEqual({ id: uuid.toLowerCase() });
     expect(parseProjectRef("bot")).toEqual({ key: "BOT" });
+    expect(parseProjectRef("Pedro/bot")).toEqual({ key: "BOT", handle: "pedro" });
   });
 
   test("rejects invalid keys", () => {
-    for (const ref of ["B", "1BOT", "BOT-1", "ABCDE"]) {
+    for (const ref of ["B", "1BOT", "BOT-1", "ABCDE", "pedro/", "/BOT", "x/BOT"]) {
       expect(() => parseProjectRef(ref)).toThrow(ApiError);
     }
   });
@@ -36,6 +46,7 @@ describe("parseTaskQuery", () => {
   test("reads short IDs in any case, and bare numbers", () => {
     expect(parseTaskQuery("bot-42")).toEqual({ key: "BOT", number: 42 });
     expect(parseTaskQuery(" 7 ")).toEqual({ number: 7 });
+    expect(parseTaskQuery("pedro/BOT-42")).toEqual({ key: "BOT", number: 42, handle: "pedro" });
   });
 
   test("anything else is a title search", () => {

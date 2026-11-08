@@ -1,13 +1,13 @@
 import { generateKeyBetween } from "fractional-indexing";
 import type { Database } from "@/lib/supabase/database.types";
 import type { Db } from "./auth";
-import { ApiError, fromPostgrest, notFound } from "./errors";
-import { parseTaskRef, shortId } from "./ids";
+import { ambiguous, ApiError, fromPostgrest, notFound } from "./errors";
+import { fullForm, parseTaskRef, shortId } from "./ids";
 
 export const TASK_SELECT = `
   id, project_id, number, epic_id, title, description, type, status, column_id, position, priority,
   assignee_user_id, assignee_agent_id, due_date, version, done_at, archived_at, created_at, updated_at,
-  project:project!inner(key),
+  project:project!inner(key, workspace:workspace!inner(handle)),
   column:board_column!task_column_fkey(id, name),
   assignee_user:profile!task_assignee_user_id_fkey(id, name, email),
   assignee_agent:agent!task_assignee_agent_id_fkey(id, name, avatar),
@@ -16,7 +16,7 @@ export const TASK_SELECT = `
 `;
 
 export type TaskRow = Database["public"]["Tables"]["task"]["Row"] & {
-  project: { key: string };
+  project: { key: string; workspace: { handle: string } };
   column: { id: string; name: string };
   assignee_user: { id: string; name: string; email: string } | null;
   assignee_agent: { id: string; name: string; avatar: string | null } | null;
@@ -59,16 +59,26 @@ export function serializeTask(row: TaskRow) {
 }
 
 /** A task the caller can see, by UUID or short ID (archived ones included). */
+/**
+ * A task the caller can see, by UUID or short ID. A bare short ID can match tasks in several
+ * projects with the same key: then it's an `ambiguous` error listing the full forms.
+ */
 export async function getTaskRow(db: Db, ref: string): Promise<TaskRow> {
   const parsed = parseTaskRef(ref);
-  const query = db.from("task").select(TASK_SELECT);
-  const { data, error } = await ("id" in parsed
-    ? query.eq("id", parsed.id)
-    : query.eq("project.key", parsed.key).eq("number", parsed.number)
-  ).maybeSingle();
+  let query = db.from("task").select(TASK_SELECT);
+  if ("id" in parsed) query = query.eq("id", parsed.id);
+  else {
+    query = query.eq("project.key", parsed.key).eq("number", parsed.number);
+    if (parsed.handle) query = query.eq("project.workspace.handle", parsed.handle);
+  }
+  const { data, error } = await query.limit(10);
   if (error) throw fromPostgrest(error);
-  if (!data) throw notFound("Task");
-  return data as unknown as TaskRow;
+  const rows = (data ?? []) as unknown as TaskRow[];
+  if (rows.length === 0) throw notFound("Task");
+  if (rows.length > 1) {
+    throw ambiguous(decodeURIComponent(ref).trim(), rows.map((r) => fullForm(r.project.workspace.handle, shortId(r.project.key, r.number))));
+  }
+  return rows[0];
 }
 
 export function assertNotArchived(task: TaskRow) {

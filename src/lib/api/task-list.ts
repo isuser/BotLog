@@ -33,6 +33,7 @@ export async function listTasks(
     if (ref) {
       query = query.eq("number", ref.number);
       if (ref.key) query = query.eq("project.key", ref.key);
+      if (ref.handle) query = query.eq("project.workspace.handle", ref.handle);
     } else {
       query = query.ilike("title", `%${escapeLike(filters.q)}%`);
     }

@@ -1,6 +1,6 @@
 import type { Db } from "./auth";
-import { fromPostgrest, notFound } from "./errors";
-import { parseProjectRef } from "./ids";
+import { ambiguous, fromPostgrest, notFound } from "./errors";
+import { fullForm, parseProjectRef, type ProjectRef } from "./ids";
 import { TASK_STATUSES } from "./schemas";
 
 /** Project columns plus a count of active tasks per status. */
@@ -47,22 +47,37 @@ export function serializeProject(row: ProjectRow) {
   };
 }
 
-export async function getProject(db: Db, ref: string) {
-  const parsed = parseProjectRef(ref);
-  let query = withTaskCounts(db.from("project").select(PROJECT_SELECT));
-  query = "id" in parsed ? query.eq("id", parsed.id) : query.eq("key", parsed.key);
-  const { data, error } = await query.maybeSingle();
+/**
+ * The one project a reference points to, from the projects the caller can see. A bare key can
+ * match several (people sharing projects can use the same key): then it's an `ambiguous` error
+ * listing the full forms, never a guess.
+ */
+async function findProject<T extends { key: string; workspace: { handle: string } }>(
+  db: Db,
+  ref: string,
+  select: string,
+  narrow: <Q extends { eq: (c: string, v: string) => Q; is: (c: string, v: null) => Q }>(query: Q) => Q = (q) => q,
+): Promise<T> {
+  const parsed: ProjectRef = parseProjectRef(ref);
+  let query = narrow(db.from("project").select(`${select}, workspace:workspace!inner(handle)`));
+  if ("id" in parsed) query = query.eq("id", parsed.id);
+  else {
+    query = query.eq("key", parsed.key);
+    if (parsed.handle) query = query.eq("workspace.handle", parsed.handle);
+  }
+  const { data, error } = await query.limit(10);
   if (error) throw fromPostgrest(error);
-  if (!data) throw notFound("Project");
-  return serializeProject(data as unknown as ProjectRow);
+  const rows = (data ?? []) as unknown as T[];
+  if (rows.length === 0) throw notFound("Project");
+  if (rows.length > 1) throw ambiguous(decodeURIComponent(ref).trim(), rows.map((r) => fullForm(r.workspace.handle, r.key)));
+  return rows[0];
 }
 
-/** The id of a project the caller can see, from a UUID or key. */
+export async function getProject(db: Db, ref: string) {
+  return serializeProject(await findProject<ProjectRow & { workspace: { handle: string } }>(db, ref, PROJECT_SELECT, withTaskCounts));
+}
+
+/** The id of a project the caller can see, from a UUID, key or handle/key. */
 export async function resolveProjectId(db: Db, ref: string): Promise<string> {
-  const parsed = parseProjectRef(ref);
-  const query = db.from("project").select("id");
-  const { data, error } = await ("id" in parsed ? query.eq("id", parsed.id) : query.eq("key", parsed.key)).maybeSingle();
-  if (error) throw fromPostgrest(error);
-  if (!data) throw notFound("Project");
-  return data.id;
+  return (await findProject<{ id: string; key: string; workspace: { handle: string } }>(db, ref, "id, key")).id;
 }
