@@ -128,6 +128,16 @@ describe.skipIf(!keyLive)("tools", () => {
     expect(res.data.map((p) => p.key)).toEqual([PROJECT]);
   });
 
+  test("projects and tasks include the full form, which tools accept", async () => {
+    const [project] = (await tool<{ data: { key: string; full_key: string }[] }>("list_projects")).data;
+    expect(project.full_key).toMatch(new RegExp(`^[a-z0-9-]+/${PROJECT}$`));
+    const created = await tool<{ data: Task & { full_id: string } }>("create_task", { project: project.full_key, title: "Quote me" });
+    expect(created.data.full_id).toBe(`${project.full_key}-${created.data.short_id.split("-")[1]}`);
+    const read = await tool<{ data: Task }>("get_task", { id: created.data.full_id });
+    expect(read.data.id).toBe(created.data.id);
+    expect(client.getInstructions()).toContain("ana/BOT-42");
+  });
+
   test("work the core loop: find a task, start it, comment, finish", async () => {
     const created = await call(projectTasks.POST, {
       method: "POST",

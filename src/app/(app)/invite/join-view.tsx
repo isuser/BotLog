@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { api, ApiRequestError, errorMessage } from "@/lib/client/api";
 import { forgetInviteToken, inviteToken } from "@/lib/client/invite-token";
 import type { InvitePreview, Project } from "@/lib/client/types";
+import { projectHref } from "@/lib/client/refs";
 
 const DEAD: Record<Exclude<InvitePreview["state"], "valid">, string> = {
   expired: "This invite link has expired.",
@@ -38,8 +39,8 @@ export function JoinView() {
     try {
       const { data: project } = await api<{ data: Project }>("/invites/accept", { method: "POST", json: { token } });
       forgetInviteToken();
-      await mutate("/projects");
-      router.push(`/projects/${project.key}`);
+      const projects = await mutate<Project[]>("/projects");
+      router.push(projectHref(project, projects ?? [project]));
     } catch (e) {
       setJoinError(errorMessage(e));
       setJoining(false);

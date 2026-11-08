@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import { connection } from "next/server";
 import { Suspense } from "react";
+import { segmentLabel } from "@/lib/client/refs";
 
 export async function generateMetadata({ params }: PageProps<"/projects/[key]">): Promise<Metadata> {
   const { key } = await params;
-  return { title: `${key.toUpperCase()} · Botlog` };
+  return { title: `${segmentLabel(key)} · Botlog` };
 }
 
 /**

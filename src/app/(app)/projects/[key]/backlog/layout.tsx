@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { BacklogSkeleton, BacklogView } from "./backlog-view";
+import { normalizeSegment } from "@/lib/client/refs";
 
 /**
  * The backlog lives in the layout, like the board, so it stays mounted (with its scroll)
@@ -19,5 +20,5 @@ export default function BacklogLayout({ children, params }: LayoutProps<"/projec
 
 async function BacklogForKey({ params }: Pick<LayoutProps<"/projects/[key]/backlog">, "params">) {
   const { key } = await params;
-  return <BacklogView projectKey={key.toUpperCase()} />;
+  return <BacklogView projectKey={normalizeSegment(key)} />;
 }

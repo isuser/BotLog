@@ -1,7 +1,7 @@
 import { fromPostgrest } from "@/lib/api/errors";
 import { json, parseBody, route } from "@/lib/api/handler";
 import { decodeCursor, keysetFilter, page, parseLimit } from "@/lib/api/pagination";
-import { getProject, narrowProjects, PROJECT_SELECT, serializeProject } from "@/lib/api/projects";
+import { getProject, narrowProjects, PROJECT_SELECT, serializeProject, WORKSPACE_EMBED } from "@/lib/api/projects";
 import { createProjectSchema } from "@/lib/api/schemas";
 
 /** Projects the caller can see (their own and ones shared with them), oldest first, with task counts. */
@@ -9,7 +9,7 @@ export const GET = route(async ({ db, url, actor }) => {
   const limit = parseLimit(url.searchParams);
   const cursor = decodeCursor(url.searchParams, 2);
 
-  let query = narrowProjects(db.from("project").select(PROJECT_SELECT), actor.userId);
+  let query = narrowProjects(db.from("project").select(`${PROJECT_SELECT}, ${WORKSPACE_EMBED}`), actor.userId);
   if (cursor) query = query.or(keysetFilter(["created_at", "id"], cursor));
   const { data, error } = await query.order("created_at").order("id").limit(limit + 1);
   if (error) throw fromPostgrest(error);

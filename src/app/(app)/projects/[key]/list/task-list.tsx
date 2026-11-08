@@ -16,8 +16,10 @@ import { taskHref } from "@/lib/client/board";
 import { formatDate, fullDate, timeAgo } from "@/lib/client/format";
 import { PRIORITY_BADGE, STATUS_COLORS, TYPE_BADGE } from "@/lib/client/task-labels";
 import { DEFAULT_SORT, nextSort, parseSort, sortTasks, type Sort, type SortKey } from "@/lib/client/task-sort";
+import { isTaskSegment, taskLabel } from "@/lib/client/refs";
 import type { Task } from "@/lib/client/types";
 import { useProjectPeople } from "@/lib/client/use-project-people";
+import { useFullFormUrl } from "@/lib/client/use-refs";
 import { cn } from "@/lib/utils";
 import { QuickAdd } from "../(board)/quick-add";
 
@@ -134,7 +136,7 @@ export function TaskList({ projectKey }: { projectKey: string }) {
                 <TaskRow
                   key={task.id}
                   task={task}
-                  selected={taskId?.toUpperCase() === task.short_id}
+                  selected={isTaskSegment(taskId, task)}
                   overdue={Boolean(task.due_date && task.status !== "done" && task.due_date < today)}
                 />
               ))}
@@ -151,12 +153,13 @@ function TaskRow({ task, selected, overdue }: { task: Task; selected: boolean; o
   const { name } = useProjectPeople(task.project_id);
   const type = TYPE_BADGE[task.type];
   const priority = PRIORITY_BADGE[task.priority];
+  const full = useFullFormUrl();
   return (
     <tr className={cn("hover:bg-accent/50 relative", selected && "bg-accent/60", task.status === "done" && "text-muted-foreground")}>
-      <td className="text-muted-foreground px-3 py-2 font-mono text-xs whitespace-nowrap">{task.short_id}</td>
+      <td className="text-muted-foreground px-3 py-2 font-mono text-xs whitespace-nowrap">{taskLabel(task, full)}</td>
       <td className="px-3 py-2">
         <Link
-          href={taskHref(task, "list")}
+          href={taskHref(task, "list", full)}
           scroll={false}
           className="block min-w-0 after:absolute after:inset-0 after:content-[''] focus-visible:outline-none"
         >

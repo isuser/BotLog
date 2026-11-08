@@ -29,6 +29,7 @@ import { applyTheme, useTheme } from "@/lib/client/theme";
 import { isShared } from "@/lib/client/projects";
 import type { Profile, Project, Task } from "@/lib/client/types";
 import { cn } from "@/lib/utils";
+import { clashingKeys, projectLabel, projectSegment, segmentLabel, taskLabel } from "@/lib/client/refs";
 
 const SEARCH_DEBOUNCE_MS = 150;
 const MAX_TASKS = 8;
@@ -101,35 +102,38 @@ export function CommandMenu({
 
   const q = query.trim();
   const items: Item[] = [];
+  // Keys the viewer sees on more than one project show and link the full form (ana/BOT-42).
+  const clashes = clashingKeys(projects ?? []);
+  const here = projectKey && segmentLabel(projectKey);
   for (const task of q ? (tasks ?? []) : []) {
     items.push({
       id: `task:${task.id}`,
       group: "Tasks",
       label: task.title,
-      hint: task.short_id,
+      hint: taskLabel(task, clashes.has(task.project_key)),
       dot: STATUS_COLORS[task.status].dot,
-      run: () => go(taskHref(task)),
+      run: () => go(taskHref(task, "board", clashes.has(task.project_key))),
     });
   }
   // Shared projects also match their owner's name, and say whose they are.
-  for (const project of (projects ?? []).filter((p) => !q || matches(`${p.name} ${p.key} ${isShared(p) ? (p.owner?.name ?? "") : ""}`, q)).slice(0, q ? 5 : 8)) {
+  for (const project of (projects ?? []).filter((p) => !q || matches(`${p.name} ${p.key} ${clashes.has(p.key) ? p.full_key : ""} ${isShared(p) ? (p.owner?.name ?? "") : ""}`, q)).slice(0, q ? 5 : 8)) {
     items.push({
-      id: `project:${project.key}`,
+      id: `project:${project.id}`,
       group: "Projects",
       label: project.name,
-      hint: isShared(project) ? `${project.key} · ${project.owner ? `Shared by ${project.owner.name}` : "Shared"}` : project.key,
+      hint: `${projectLabel(project, clashes.has(project.key))}${isShared(project) ? ` · ${project.owner ? `Shared by ${project.owner.name}` : "Shared"}` : ""}`,
       icon: isShared(project) ? FolderSymlinkIcon : FolderIcon,
-      run: () => go(`/projects/${project.key}`),
+      run: () => go(`/projects/${projectSegment(project, clashes.has(project.key))}`),
     });
   }
   const pages: Omit<Item, "group">[] = [
     ...(projectKey
       ? [
-          { id: "board", label: `${projectKey} board`, icon: LayoutGridIcon, run: () => go(`/projects/${projectKey}`) },
-          { id: "backlog", label: `${projectKey} backlog`, icon: InboxIcon, run: () => go(`/projects/${projectKey}/backlog`) },
-          { id: "list", label: `${projectKey} list`, icon: ListIcon, run: () => go(`/projects/${projectKey}/list`) },
-          { id: "epics", label: `${projectKey} epics`, icon: LayersIcon, run: () => go(`/projects/${projectKey}/epics`) },
-          { id: "project-settings", label: `${projectKey} settings`, icon: SlidersHorizontalIcon, run: () => go(`/projects/${projectKey}/settings`) },
+          { id: "board", label: `${here} board`, icon: LayoutGridIcon, run: () => go(`/projects/${projectKey}`) },
+          { id: "backlog", label: `${here} backlog`, icon: InboxIcon, run: () => go(`/projects/${projectKey}/backlog`) },
+          { id: "list", label: `${here} list`, icon: ListIcon, run: () => go(`/projects/${projectKey}/list`) },
+          { id: "epics", label: `${here} epics`, icon: LayersIcon, run: () => go(`/projects/${projectKey}/epics`) },
+          { id: "project-settings", label: `${here} settings`, icon: SlidersHorizontalIcon, run: () => go(`/projects/${projectKey}/settings`) },
         ]
       : []),
     { id: "my-tasks", label: "My tasks", icon: CheckSquareIcon, run: () => go("/my-tasks") },

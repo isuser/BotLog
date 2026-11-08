@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { ProjectHeader } from "./project-header";
 import { ProjectRealtime } from "./project-realtime";
+import { normalizeSegment } from "@/lib/client/refs";
 
 /** Every project page: the project's title and its Board / Backlog / List / Epics tabs, kept live by realtime. */
 export default function ProjectLayout({ children, params }: LayoutProps<"/projects/[key]">) {
@@ -19,8 +20,8 @@ async function HeaderForKey({ params }: Pick<LayoutProps<"/projects/[key]">, "pa
   const { key } = await params;
   return (
     <>
-      <ProjectHeader projectKey={key.toUpperCase()} />
-      <ProjectRealtime projectKey={key.toUpperCase()} />
+      <ProjectHeader projectKey={normalizeSegment(key)} />
+      <ProjectRealtime projectKey={normalizeSegment(key)} />
     </>
   );
 }

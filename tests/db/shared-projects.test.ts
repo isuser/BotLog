@@ -737,6 +737,38 @@ describe("workspace handles", () => {
     expect((await setHandle(agent, `bot-${counter}`)).affectedRows).toBe(0);
     await expect(run(human(b), "update workspace set id = gen_random_uuid()")).rejects.toThrow(/permission denied/);
   });
+
+  test("my_workspace() is your own workspace only, even when you can see others'", async () => {
+    const w = await world();
+    const wsOf = async (id: string) =>
+      (await one<{ workspace_id: string }>(db, "select workspace_id from profile where id = $1", [id])).workspace_id;
+    const mine = (claims: Claims) =>
+      as(db, claims, async (tx) => (await tx.query<{ id: string; handle: string }>("select * from public.my_workspace()")).rows);
+
+    // The member can read the owner's workspace (it owns a project they're in)...
+    expect(await count(human(w.member), "select id from workspace")).toBe(2);
+    // ...but my_workspace() is theirs alone, for people and their agents.
+    const own = await mine(human(w.member));
+    expect(own).toHaveLength(1);
+    expect(own[0].id).toBe(await wsOf(w.member));
+    expect((await mine(w.memberAgent)).map((r) => r.id)).toEqual([await wsOf(w.member)]);
+  });
+
+  test("nobody else can change your handle: not co-members, admins, outsiders or agents", async () => {
+    const w = await world();
+    const ownerWs = (await one<{ workspace_id: string }>(db, "select workspace_id from profile where id = $1", [w.owner])).workspace_id;
+    const before = (await one<{ handle: string }>(db, "select handle from workspace where id = $1", [ownerWs])).handle;
+    for (const claims of [human(w.admin), human(w.member), human(w.outsider), w.ownerAgent, w.adminAgent]) {
+      const res = await run(claims, "update workspace set handle = $1 where id = $2", [`taken-${++counter}`, ownerWs]);
+      expect(res.affectedRows).toBe(0);
+    }
+    expect(await one(db, "select handle from workspace where id = $1", [ownerWs])).toEqual({ handle: before });
+
+    // The owner can, and the old handle is free again for anyone.
+    const renamed = `renamed-${++counter}`;
+    expect((await run(human(w.owner), "update workspace set handle = $1 where id = $2", [renamed, ownerWs])).affectedRows).toBe(1);
+    expect((await run(human(w.outsider), "update workspace set handle = $1", [before])).affectedRows).toBe(1);
+  });
 });
 
 describe("backfill on existing data", () => {

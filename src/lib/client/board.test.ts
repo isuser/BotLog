@@ -169,10 +169,14 @@ describe("inDoneWindow", () => {
 });
 
 describe("taskHref", () => {
-  const t = { project_key: "BOT", short_id: "BOT-1" };
+  const t = { project_key: "BOT", short_id: "BOT-1", full_id: "ana/BOT-1" };
   test("opens over the board, backlog or list", () => {
     expect(taskHref(t)).toBe("/projects/BOT/tasks/BOT-1");
     expect(taskHref(t, "backlog")).toBe("/projects/BOT/backlog/tasks/BOT-1");
     expect(taskHref(t, "list")).toBe("/projects/BOT/list/tasks/BOT-1");
+  });
+  test("uses the full form, one segment each, when the key clashes", () => {
+    expect(taskHref(t, "board", true)).toBe("/projects/ana%2FBOT/tasks/ana%2FBOT-1");
+    expect(taskHref(t, "list", true)).toBe("/projects/ana%2FBOT/list/tasks/ana%2FBOT-1");
   });
 });

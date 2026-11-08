@@ -828,6 +828,16 @@ export type Database = {
           updated_at: string
         }[]
       }
+      my_workspace: {
+        Args: never
+        Returns: {
+          created_at: string
+          handle: string
+          id: string
+          name: string
+          updated_at: string
+        }[]
+      }
       preview_project_invite: {
         Args: { token: string }
         Returns: {

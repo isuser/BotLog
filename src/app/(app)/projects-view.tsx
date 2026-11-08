@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { apiAll } from "@/lib/client/api";
 import { COLUMNS } from "@/lib/client/board";
 import { isShared } from "@/lib/client/projects";
+import { clashingKeys, projectLabel, projectSegment } from "@/lib/client/refs";
 import type { Project } from "@/lib/client/types";
 import { NewProjectDialog } from "./new-project-dialog";
 
@@ -15,6 +16,8 @@ export function ProjectsView() {
   const { data: projects, error } = useSWR("/projects", (path: string) => apiAll<Project>(path));
   const own = projects?.filter((p) => !isShared(p)) ?? [];
   const shared = projects?.filter(isShared) ?? [];
+  // Keys on more than one project show with their workspace handle (ana/BOT).
+  const clashes = clashingKeys(projects ?? []);
 
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 p-4 sm:p-8">
@@ -44,7 +47,7 @@ export function ProjectsView() {
         </div>
       ) : shared.length === 0 ? (
         // Nothing shared yet: one list, as before sharing existed.
-        <ProjectGrid projects={own} />
+        <ProjectGrid projects={own} clashes={clashes} />
       ) : (
         <>
           <section className="flex flex-col gap-3" aria-labelledby="your-projects">
@@ -52,7 +55,7 @@ export function ProjectsView() {
               Your projects
             </h2>
             {own.length ? (
-              <ProjectGrid projects={own} />
+              <ProjectGrid projects={own} clashes={clashes} />
             ) : (
               <p className="text-muted-foreground text-sm">You haven&apos;t created a project yet.</p>
             )}
@@ -61,7 +64,7 @@ export function ProjectsView() {
             <h2 id="shared-projects" className="text-lg font-semibold">
               Shared with you
             </h2>
-            <ProjectGrid projects={shared} />
+            <ProjectGrid projects={shared} clashes={clashes} />
           </section>
         </>
       )}
@@ -69,19 +72,19 @@ export function ProjectsView() {
   );
 }
 
-function ProjectGrid({ projects }: { projects: Project[] }) {
+function ProjectGrid({ projects, clashes }: { projects: Project[]; clashes: Set<string> }) {
   return (
     <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {projects.map((project) => (
         <li key={project.id}>
           <Link
-            href={`/projects/${project.key}`}
+            href={`/projects/${projectSegment(project, clashes.has(project.key))}`}
             className="bg-card hover:border-ring/60 flex h-full flex-col gap-3 rounded-xl border p-4 transition-colors"
           >
             <div className="flex flex-col gap-0.5">
               <div className="flex items-baseline justify-between gap-2">
                 <span className="truncate font-medium">{project.name}</span>
-                <span className="text-muted-foreground font-mono text-xs">{project.key}</span>
+                <span className="text-muted-foreground shrink-0 font-mono text-xs">{projectLabel(project, clashes.has(project.key))}</span>
               </div>
               {isShared(project) && (
                 <span className="text-muted-foreground truncate text-xs">

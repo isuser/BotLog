@@ -13,6 +13,7 @@ import { assigneeOptions } from "@/lib/client/assignees";
 import { PRIORITY_BADGE, PRIORITY_LABELS, STATUS_COLORS, TYPE_BADGE, TYPE_LABELS } from "@/lib/client/task-labels";
 import type { BoardColumn, Epic, Task, TaskStatus } from "@/lib/client/types";
 import { useProjectPeople } from "@/lib/client/use-project-people";
+import { useTaskProjectSegment } from "@/lib/client/use-refs";
 import { cn } from "@/lib/utils";
 import { LabelPicker } from "./label-picker";
 
@@ -113,7 +114,7 @@ export function TaskFields({
   onMove: (column: Pick<BoardColumn, "id" | "name" | "counts_as">) => Promise<boolean>;
 }) {
   const { me, members, agents, context } = useProjectPeople(task.project_id, { withAgents: true });
-  const { data: columns } = useSWR(`/projects/${task.project_key}/columns`, (path: string) =>
+  const { data: columns } = useSWR(`/projects/${useTaskProjectSegment(task)}/columns`, (path: string) =>
     apiAll<BoardColumn>(path),
   );
 
@@ -292,7 +293,7 @@ function EpicSelect({
   disabled: boolean;
   onChange: (change: FieldChange) => Promise<boolean>;
 }) {
-  const { data: epics } = useSWR(`/projects/${task.project_key}/epics`, (path: string) => apiAll<Epic>(path));
+  const { data: epics } = useSWR(`/projects/${useTaskProjectSegment(task)}/epics`, (path: string) => apiAll<Epic>(path));
   const options = new Map<string, Task["epic"]>([["none", null]]);
   for (const epic of epics ?? []) options.set(epic.id, { id: epic.id, title: epic.title, status: epic.status });
   if (task.epic) options.set(task.epic.id, task.epic);

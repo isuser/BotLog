@@ -12,6 +12,7 @@ import { agentLabel, agentRole, type NameContext } from "@/lib/client/assignees"
 import { fullDate, timeAgo } from "@/lib/client/format";
 import type { Activity, BoardColumn, Epic, Label, Task } from "@/lib/client/types";
 import { useProjectPeople } from "@/lib/client/use-project-people";
+import { useTaskProjectSegment } from "@/lib/client/use-refs";
 import type { CurrentUser } from "./task-fields";
 
 /** Shown when a task opens; each "Load more" fetches the next few older entries. */
@@ -51,9 +52,10 @@ export function TaskActivity({ task, currentUser }: { task: Task; currentUser: C
   );
   const { members, agents, context } = useProjectPeople(task.project_id, { withAgents: true });
   // Shared with the Epic and Labels fields, so these are usually cached already.
-  const { data: labels } = useSWR(`/projects/${task.project_key}/labels`, (path: string) => apiAll<Label>(path));
-  const { data: epics } = useSWR(`/projects/${task.project_key}/epics`, (path: string) => apiAll<Epic>(path));
-  const { data: columns } = useSWR(`/projects/${task.project_key}/columns`, (path: string) =>
+  const projectRef = useTaskProjectSegment(task);
+  const { data: labels } = useSWR(`/projects/${projectRef}/labels`, (path: string) => apiAll<Label>(path));
+  const { data: epics } = useSWR(`/projects/${projectRef}/epics`, (path: string) => apiAll<Epic>(path));
+  const { data: columns } = useSWR(`/projects/${projectRef}/columns`, (path: string) =>
     apiAll<BoardColumn>(path),
   );
 

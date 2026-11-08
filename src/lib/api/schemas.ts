@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ATTACHMENT_TYPES, MAX_ATTACHMENT_BYTES } from "./attachments";
+import { HANDLE_FORMAT_MESSAGE, HANDLE_REGEX, normalizeHandle } from "@/lib/handle";
 import { THEMES } from "./profile";
 
 export const TASK_STATUSES = ["backlog", "todo", "in_progress", "done"] as const;
@@ -168,6 +169,10 @@ export const updateProfileSchema = z
   .partial()
   .strict()
   .refine((body) => Object.keys(body).length > 0, "Send at least one field to change.");
+
+export const updateWorkspaceSchema = z
+  .object({ handle: z.string().transform(normalizeHandle).pipe(z.string().regex(HANDLE_REGEX, HANDLE_FORMAT_MESSAGE)) })
+  .strict();
 
 const epicFields = {
   title: z.string().trim().min(1).max(500),

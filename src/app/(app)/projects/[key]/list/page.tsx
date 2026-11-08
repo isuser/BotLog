@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import { connection } from "next/server";
 import { Suspense } from "react";
+import { segmentLabel } from "@/lib/client/refs";
 
 export async function generateMetadata({ params }: PageProps<"/projects/[key]/list">): Promise<Metadata> {
   const { key } = await params;
-  return { title: `${key.toUpperCase()} list · Botlog` };
+  return { title: `${segmentLabel(key)} list · Botlog` };
 }
 
 /** The list itself is in the layout; this page is the list with no task open. */

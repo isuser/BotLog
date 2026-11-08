@@ -13,6 +13,7 @@ import { api, ApiRequestError, isConflict } from "@/lib/client/api";
 import { COLUMNS, syncTask, taskHref, type TaskView } from "@/lib/client/board";
 import { isPlainKey, isTypingTarget, useKeydown } from "@/lib/client/shortcuts";
 import { fullDate, timeAgo } from "@/lib/client/format";
+import { isFullSegment, isTaskSegment, normalizeSegment, segmentLabel, taskLabel, taskProjectSegment, taskSegment } from "@/lib/client/refs";
 import type { BoardColumn, Profile, Task, TaskStatus } from "@/lib/client/types";
 import { TaskActivity } from "./task-activity";
 import { TaskComments } from "./task-comments";
@@ -33,8 +34,11 @@ export function TaskPanel({
   view?: TaskView;
 }) {
   const params = useParams<{ key: string; taskId: string }>();
-  const projectKey = params.key.toUpperCase();
-  const taskRef = decodeURIComponent(params.taskId).toUpperCase();
+  // URL segments, canonical and still encoded (`BOT`, `ana%2FBOT`), usable in API paths as is.
+  const projectKey = normalizeSegment(params.key);
+  const taskRef = normalizeSegment(params.taskId);
+  // The full form (`ana/BOT-42`) when the project's URL uses it: the viewer sees two projects keyed BOT.
+  const full = isFullSegment(projectKey);
   const router = useRouter();
   const { cache, mutate: mutateKey } = useSWRConfig();
   const backHref = `/projects/${projectKey}${view === "board" ? "" : `/${view}`}`;
@@ -42,7 +46,7 @@ export function TaskPanel({
   const { data: task, error, mutate } = useSWR(
     `/tasks/${taskRef}`,
     (path: string) => api<{ data: Task }>(path).then((r) => r.data),
-    { fallbackData: boardTasks?.find((t) => t.short_id === taskRef || t.id.toUpperCase() === taskRef) },
+    { fallbackData: boardTasks?.find((t) => isTaskSegment(taskRef, t)) },
   );
   const { data: me } = useSWR("/me", (path: string) => api<{ data: Profile }>(path).then((r) => r.data));
   const currentUser = me && { id: me.id, email: me.email };
@@ -55,13 +59,13 @@ export function TaskPanel({
 
   // A task opened under another project's URL, or by UUID, moves to its own URL.
   useEffect(() => {
-    if (task && (task.project_key !== projectKey || task.short_id !== taskRef)) {
-      router.replace(taskHref(task, view), { scroll: false });
+    if (task && (taskProjectSegment(task, full) !== projectKey || taskSegment(task, full) !== taskRef)) {
+      router.replace(taskHref(task, view, full), { scroll: false });
     }
-  }, [task, projectKey, taskRef, router, view]);
+  }, [task, projectKey, taskRef, router, view, full]);
 
   const syncBoard = (updated: Task) =>
-    mutateKey(`/projects/${updated.project_key}/tasks`, (tasks?: Task[]) => tasks && syncTask(tasks, updated), {
+    mutateKey(`/projects/${taskProjectSegment(updated, full)}/tasks`, (tasks?: Task[]) => tasks && syncTask(tasks, updated), {
       revalidate: false,
     });
 
@@ -129,9 +133,9 @@ export function TaskPanel({
       await syncBoard(data);
       if (archived) {
         setOpen(false);
-        toast(`${data.short_id} archived`, { action: { label: "Undo", onClick: () => void restore(data) } });
+        toast(`${taskLabel(data, full)} archived`, { action: { label: "Undo", onClick: () => void restore(data) } });
       } else {
-        toast(`${data.short_id} restored`);
+        toast(`${taskLabel(data, full)} restored`);
       }
     } catch (error) {
       await reportError(error);
@@ -152,7 +156,7 @@ export function TaskPanel({
   async function copyLink() {
     if (!task) return;
     try {
-      await navigator.clipboard.writeText(new URL(taskHref(task), window.location.origin).toString());
+      await navigator.clipboard.writeText(new URL(taskHref(task, "board", full), window.location.origin).toString());
       toast("Link copied");
     } catch {
       toast.error("Couldn't copy the link.");
@@ -197,7 +201,7 @@ export function TaskPanel({
         ref={popupRef}
         initialFocus={popupRef}
         className="w-[calc(100vw-2rem)] gap-0 sm:max-w-xl max-sm:inset-0 max-sm:h-dvh max-sm:max-h-none max-sm:w-full max-sm:translate-x-0 max-sm:rounded-none max-sm:border-0">
-        <SheetTitle className="sr-only">{task ? `${task.short_id}: ${task.title}` : taskRef}</SheetTitle>
+        <SheetTitle className="sr-only">{task ? `${taskLabel(task, full)}: ${task.title}` : segmentLabel(taskRef)}</SheetTitle>
         <header className="flex h-14 shrink-0 items-center gap-1 border-b px-4 pr-12">
           <Button
             variant="ghost"
@@ -205,9 +209,9 @@ export function TaskPanel({
             className="text-muted-foreground -ml-2 font-mono text-xs"
             onClick={copyLink}
             disabled={!task}
-            aria-label={`Copy link to ${task?.short_id ?? taskRef}`}
+            aria-label={`Copy link to ${task ? taskLabel(task, full) : segmentLabel(taskRef)}`}
           >
-            {task?.short_id ?? taskRef}
+            {task ? taskLabel(task, full) : segmentLabel(taskRef)}
             <LinkIcon />
           </Button>
         </header>

@@ -8,6 +8,9 @@ import { TASK_STATUSES } from "./schemas";
 export const PROJECT_SELECT =
   "id, key, name, description, done_window_days, created_at, updated_at, backlog:task(count), todo:task(count), in_progress:task(count), done:task(count), membership:project_member(role), owner:project_member(user:profile!project_member_user_id_fkey(id, name))";
 
+/** The owning workspace's handle, for the full form (`handle/KEY`) and to filter by it. Add it to PROJECT_SELECT when listing. */
+export const WORKSPACE_EMBED = "workspace:workspace!inner(handle)";
+
 type CountEmbed = { count: number }[];
 type ProjectRole = Database["public"]["Enums"]["project_role"];
 
@@ -21,6 +24,7 @@ type ProjectRow = {
   updated_at: string;
   membership: { role: ProjectRole }[];
   owner: { user: { id: string; name: string } | null }[];
+  workspace: { handle: string };
 } & Record<(typeof TASK_STATUSES)[number], CountEmbed>;
 
 type Narrowable<Q> = { eq: (c: string, v: string) => Q; is: (c: string, v: null) => Q };
@@ -49,6 +53,10 @@ export function serializeProject(row: ProjectRow) {
   return {
     id: row.id,
     key: row.key,
+    /** The handle of the workspace it belongs to. */
+    handle: row.workspace.handle,
+    /** Always unambiguous (`ana/BOT`); use it when the caller can see another project with the same key. */
+    full_key: fullForm(row.workspace.handle, row.key),
     name: row.name,
     description: row.description,
     done_window_days: row.done_window_days,
@@ -74,7 +82,7 @@ async function findProject<T extends { key: string; workspace: { handle: string 
   narrow: <Q extends Narrowable<Q>>(query: Q) => Q = (q) => q,
 ): Promise<T> {
   const parsed: ProjectRef = parseProjectRef(ref);
-  let query = narrow(db.from("project").select(`${select}, workspace:workspace!inner(handle)`));
+  let query = narrow(db.from("project").select(`${select}, ${WORKSPACE_EMBED}`));
   if ("id" in parsed) query = query.eq("id", parsed.id);
   else {
     query = query.eq("key", parsed.key);
@@ -90,7 +98,7 @@ async function findProject<T extends { key: string; workspace: { handle: string 
 
 export async function getProject(db: Db, ref: string, userId: string) {
   return serializeProject(
-    await findProject<ProjectRow & { workspace: { handle: string } }>(db, ref, PROJECT_SELECT, (q) => narrowProjects(q, userId)),
+    await findProject<ProjectRow>(db, ref, PROJECT_SELECT, (q) => narrowProjects(q, userId)),
   );
 }
 

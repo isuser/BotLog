@@ -20,6 +20,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { api, ApiRequestError } from "@/lib/client/api";
 import { PROJECT_KEY_MAX, PROJECT_KEY_PATTERN, suggestKey } from "@/lib/client/project-key";
 import type { Project } from "@/lib/client/types";
+import { projectHref } from "@/lib/client/refs";
 
 export function NewProjectDialog({ trigger }: { trigger: React.ReactElement }) {
   const router = useRouter();
@@ -49,10 +50,10 @@ export function NewProjectDialog({ trigger }: { trigger: React.ReactElement }) {
         method: "POST",
         json: { name, key, ...(description ? { description } : {}) },
       });
-      await mutate("/projects");
+      const projects = await mutate<Project[]>("/projects");
       setOpen(false);
       reset();
-      router.push(`/projects/${data.key}`);
+      router.push(projectHref(data, projects ?? [data]));
     } catch (e) {
       const details = e instanceof ApiRequestError ? e.details : undefined;
       setError(details?.length ? details.map((d) => `${d.path}: ${d.message}`).join(". ") : (e as Error).message);

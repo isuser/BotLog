@@ -9,6 +9,7 @@ export const AGENT_RULES = [
   "When finished, add a comment with a short summary, then move it to done, or to the column the user asked for.",
   "If blocked, comment why and leave the status unchanged.",
   "Never archive tasks or epics unless asked.",
+  "Projects shared with you can have the same key as one of yours. A key or short ID that matches several gives an ambiguous error listing the full forms (like ana/BOT-42): use the one you mean, never guess. Tasks and projects carry theirs in full_id and full_key.",
   "Writes need the task's current version. On a conflict error (409), call get_task again and retry with the new version.",
   "If you get a rate limit error (429), wait the number of seconds in retry_after before trying again.",
   "Images in descriptions and comments are Markdown links like ![name](/api/v1/attachments/<id>). When one matters for the task (a screenshot of a bug, a design), look at it with get_attachment.",

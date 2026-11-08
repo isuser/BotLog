@@ -26,13 +26,13 @@ export const INSTRUCTIONS = `Botlog is a kanban board you share with humans. You
 Default rules (the user's own instructions to you take precedence):
 ${AGENT_RULES.map((rule) => `- ${rule}`).join("\n")}
 
-Tasks can be referred to by short ID (like BOT-42) or UUID, and projects by key (like BOT) or UUID.`;
+Tasks can be referred to by short ID (like BOT-42) or UUID, and projects by key (like BOT) or UUID. The full form with the workspace handle in front (like ana/BOT-42 and ana/BOT, the full_id and full_key fields) always picks one.`;
 
 const RECENT_ACTIVITY = 20;
 const MAX_COMMENTS = 100;
 
-const taskId = z.string().min(1).describe("Task short ID like BOT-42, or its UUID");
-const projectRef = z.string().min(1).describe("Project key like BOT, or its UUID");
+const taskId = z.string().min(1).describe("Task short ID like BOT-42 (or its full form like ana/BOT-42), or its UUID");
+const projectRef = z.string().min(1).describe("Project key like BOT (or its full form like ana/BOT), or its UUID");
 const version = z
   .number()
   .int()

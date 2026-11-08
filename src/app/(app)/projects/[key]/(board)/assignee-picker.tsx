@@ -11,6 +11,7 @@ import { assigneeOptions, sameActor } from "@/lib/client/assignees";
 import { syncTask } from "@/lib/client/board";
 import type { Task } from "@/lib/client/types";
 import { useProjectPeople } from "@/lib/client/use-project-people";
+import { useTaskProjectSegment } from "@/lib/client/use-refs";
 import { cn } from "@/lib/utils";
 
 /** Stops an event inside the picker from reaching the card, which would open the task or start a drag. */
@@ -24,6 +25,7 @@ const stop = (e: React.SyntheticEvent) => e.stopPropagation();
 export function AssigneePicker({ task }: { task: Task }) {
   const [open, setOpen] = useState(false);
   const { mutate } = useSWRConfig();
+  const projectRef = useTaskProjectSegment(task);
   // Shared by every card of the project; the agents load the first time a menu opens.
   const { me, members, agents, context, name } = useProjectPeople(task.project_id, { withAgents: open });
   const options = assigneeOptions({ me, members, agents, current: task.assignee, context });
@@ -31,7 +33,7 @@ export function AssigneePicker({ task }: { task: Task }) {
   async function assign(actor: Actor | null) {
     setOpen(false);
     if (sameActor(actor, task.assignee)) return;
-    const boardKey = `/projects/${task.project_key}/tasks`;
+    const boardKey = `/projects/${projectRef}/tasks`;
     try {
       await mutate(
         boardKey,

@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { TaskPanel } from "./task-panel";
+import { segmentLabel } from "@/lib/client/refs";
 
 export async function generateMetadata({ params }: PageProps<"/projects/[key]/tasks/[taskId]">): Promise<Metadata> {
   const { taskId } = await params;
-  return { title: `${decodeURIComponent(taskId).toUpperCase()} · Botlog` };
+  return { title: `${segmentLabel(taskId)} · Botlog` };
 }
 
 /** A task open over its board. The URL can be shared; opening it loads the board behind. */

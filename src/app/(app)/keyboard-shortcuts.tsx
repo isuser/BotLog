@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { isPlainKey, isTypingTarget, NEW_TASK_EVENT, OPEN_COMMAND_MENU_EVENT, useKeydown } from "@/lib/client/shortcuts";
 import { CommandMenu } from "./command-menu";
 import { ShortcutsHelp } from "./shortcuts-help";
+import { normalizeSegment } from "@/lib/client/refs";
 
 /** How long after `g` the second key of a go-to shortcut still counts. */
 const SEQUENCE_MS = 1000;
@@ -27,7 +28,9 @@ const GO_TO: Record<string, (projectKey: string | null) => string | null> = {
 export function KeyboardShortcuts() {
   const router = useRouter();
   const pathname = usePathname();
-  const projectKey = /^\/projects\/([^/]+)/.exec(pathname)?.[1]?.toUpperCase() ?? null;
+  // The project's URL segment (`BOT`, or `ana%2FBOT` for the full form).
+  const segment = /^\/projects\/([^/]+)/.exec(pathname)?.[1];
+  const projectKey = segment ? normalizeSegment(segment) : null;
   const [menuOpen, setMenuOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const pendingG = useRef(0);

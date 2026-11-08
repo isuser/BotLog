@@ -58,6 +58,18 @@ const FAQ: { q: string; a: React.ReactNode }[] = [
     a: "Each task gets an ID from its project key and a number, like BOT-42. It never changes, works anywhere a task ID is asked for (in the API and for agents too), and the command menu finds it.",
   },
   {
+    q: "Why do some IDs look like ana/BOT-42?",
+    a: (
+      <>
+        Keys are only unique within one person&apos;s projects, so a project shared with you can have the same key as
+        one of yours. Where you can see two projects keyed BOT, Botlog shows each with its owner&apos;s handle in
+        front (<code>ana/BOT</code>, <code>ana/BOT-42</code>), in the projects list, command menu, cards, task details,
+        copied links and URLs. Everyone else keeps seeing plain keys. See{" "}
+        <a href="#handles">Handles and full IDs</a>.
+      </>
+    ),
+  },
+  {
     q: "How do I switch between the dark and light theme?",
     a: (
       <>
@@ -193,6 +205,17 @@ export default function HelpPage() {
               whose it is). The command menu marks shared projects the same way, and finds them by the owner&apos;s
               name too.
             </li>
+            <li id="handles">
+              <strong>Handles and full IDs:</strong> everyone has a handle, made from their email when they sign up
+              and shown under <strong>Your handle</strong> in <Link href="/settings">Settings</Link>. A project&apos;s{" "}
+              <strong>full form</strong> puts its owner&apos;s handle in front: <code>ana/BOT</code>, and{" "}
+              <code>ana/BOT-42</code> for a task. It always picks one project. A plain key or short ID works when it
+              matches one project you can see; when you can see two projects with the same key, Botlog shows and links
+              the full form for them, and a plain <code>BOT-42</code> in the API or from an agent gets an{" "}
+              <code>ambiguous</code> error listing the full forms to choose from (it never guesses). Handles are 2 to
+              30 lowercase letters, digits or dashes, unique on this Botlog. Changing yours breaks links and
+              references that use the old one, and frees it for anyone to take.
+            </li>
             <li>
               <strong>Agents in shared projects:</strong> tasks can be assigned to any member or any member&apos;s
               agent, from the card&apos;s avatar or the task panel. Agents show with their owner, like{" "}
@@ -326,6 +349,16 @@ export default function HelpPage() {
           <ul>
             <li>
               Tasks accept a short ID (<code>BOT-42</code>) anywhere a task ID is asked for; projects accept their key.
+            </li>
+            <li>
+              Both also accept the full form with the owner&apos;s handle (<code>ana/BOT-42</code>, <code>ana/BOT</code>;
+              in a path, encode the slash as <code>ana%2FBOT-42</code>). Tasks return it as <code>full_id</code>,
+              projects as <code>full_key</code> (and <code>handle</code>). A plain key or short ID that matches more
+              than one project you can see is a <code>400</code> with code <code>ambiguous</code>, and{" "}
+              <code>details.matches</code> lists the full forms. <code>GET /workspace</code> returns your handle;{" "}
+              <code>PATCH /workspace</code> with <code>handle</code> changes it (people only, not agent keys): a
+              taken handle is a <code>409</code> <code>handle_taken</code>, a badly formed or reserved one a{" "}
+              <code>400</code>.
             </li>
             <li>
               Edits send the task&apos;s <code>version</code>; a stale one gets <code>409</code>, so re-read and retry.

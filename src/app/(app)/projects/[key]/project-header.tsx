@@ -5,7 +5,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import useSWR from "swr";
 import { Skeleton } from "@/components/ui/skeleton";
-import { api } from "@/lib/client/api";
+import { ambiguousMatches, api } from "@/lib/client/api";
+import { isFullSegment, projectLabel, segmentLabel, toSegment } from "@/lib/client/refs";
 import type { Project } from "@/lib/client/types";
 import { cn } from "@/lib/utils";
 
@@ -15,9 +16,11 @@ export function ProjectHeader({ projectKey }: { projectKey: string }) {
     api<{ data: Project }>(path).then((r) => r.data),
   );
   const pathname = usePathname();
+  const base = `/projects/${projectKey}`;
+  const matches = ambiguousMatches(error);
+  if (matches) return <AmbiguousProject projectKey={projectKey} matches={matches} subpath={pathname.slice(base.length)} />;
   if (error) return null;
 
-  const base = `/projects/${projectKey}`;
   const inBacklog = pathname.startsWith(`${base}/backlog`);
   const inList = pathname.startsWith(`${base}/list`);
   const inEpics = pathname.startsWith(`${base}/epics`);
@@ -38,7 +41,9 @@ export function ProjectHeader({ projectKey }: { projectKey: string }) {
       {project ? (
         <h1 className="font-display min-w-0 truncate text-4xl font-bold tracking-[-0.02em]">
           {project.name}{" "}
-          <span className="text-muted-foreground font-mono text-sm font-normal tracking-normal">{project.key}</span>
+          <span className="text-muted-foreground font-mono text-sm font-normal tracking-normal">
+            {projectLabel(project, isFullSegment(projectKey))}
+          </span>
         </h1>
       ) : (
         <Skeleton className="h-10 w-64" />
@@ -59,5 +64,29 @@ export function ProjectHeader({ projectKey }: { projectKey: string }) {
         ))}
       </nav>
     </div>
+  );
+}
+
+/**
+ * A bare key that matches several projects the viewer can see (theirs and one shared with
+ * them, say). Never guess: link each one's full form, on the same page.
+ */
+function AmbiguousProject({ projectKey, matches, subpath }: { projectKey: string; matches: string[]; subpath: string }) {
+  return (
+    <main className="mx-auto flex w-full max-w-md flex-col items-center gap-3 p-8 text-center">
+      <p className="font-medium">{segmentLabel(projectKey)} matches more than one project</p>
+      <p className="text-muted-foreground text-sm">
+        Projects shared with you can use the same key as yours. Pick one; it shows with its owner&apos;s handle in front.
+      </p>
+      <ul className="flex flex-col gap-1">
+        {matches.map((ref) => (
+          <li key={ref}>
+            <Link href={`/projects/${toSegment(ref)}${subpath.startsWith("/tasks/") ? "" : subpath}`} className="font-mono text-sm underline">
+              {ref}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </main>
   );
 }

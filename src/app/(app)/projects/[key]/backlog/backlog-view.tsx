@@ -28,8 +28,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { api, apiAll, isConflict } from "@/lib/client/api";
 import { flatten, groupByStatus, syncTask, taskHref } from "@/lib/client/board";
 import { PRIORITY_BADGE, TYPE_BADGE } from "@/lib/client/task-labels";
+import { isFullSegment, isTaskSegment, taskLabel } from "@/lib/client/refs";
 import type { Task } from "@/lib/client/types";
 import { useProjectPeople } from "@/lib/client/use-project-people";
+import { useFullFormUrl } from "@/lib/client/use-refs";
 import { cn } from "@/lib/utils";
 import { AssigneePicker } from "../(board)/assignee-picker";
 import { QuickAdd } from "../(board)/quick-add";
@@ -112,7 +114,7 @@ export function BacklogView({ projectKey }: { projectKey: string }) {
         { optimisticData: optimistic, rollbackOnError: true, populateCache: true, revalidate: false },
       ),
     ).catch(() => null);
-    if (moved) toast(`${task.short_id} moved to To do`);
+    if (moved) toast(`${taskLabel(task, isFullSegment(projectKey))} moved to To do`);
   }
 
   async function addTask(title: string) {
@@ -196,6 +198,7 @@ function BacklogRow({
   const { name } = useProjectPeople(task.project_id);
   const type = TYPE_BADGE[task.type];
   const priority = PRIORITY_BADGE[task.priority];
+  const full = useFullFormUrl();
   return (
     <div
       className={cn(
@@ -205,7 +208,7 @@ function BacklogRow({
         dragging && "bg-card ring-ring/50 rounded-lg shadow-lg ring-2",
       )}
     >
-      <span className="text-muted-foreground w-16 shrink-0 font-mono text-xs">{task.short_id}</span>
+      <span className="text-muted-foreground min-w-16 shrink-0 font-mono text-xs">{taskLabel(task, full)}</span>
       <span className="flex min-w-0 flex-1 flex-col gap-1">
         <span className="truncate">{task.title}</span>
         {task.labels.length > 0 && (
@@ -234,7 +237,8 @@ function SortableBacklogRow({ task, onMoveToTodo }: { task: Task; onMoveToTodo: 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id });
   const router = useRouter();
   const { taskId } = useParams<{ taskId?: string }>();
-  const href = taskHref(task, "backlog");
+  const full = useFullFormUrl();
+  const href = taskHref(task, "backlog", full);
 
   function open(newTab: boolean) {
     if (newTab) window.open(href, "_blank", "noopener");
@@ -249,7 +253,7 @@ function SortableBacklogRow({ task, onMoveToTodo }: { task: Task; onMoveToTodo: 
         "focus-visible:ring-ring/50 relative touch-manipulation list-none outline-none focus-visible:ring-[3px] focus-visible:ring-inset",
         isDragging && "opacity-40",
       )}
-      aria-label={`${task.short_id}: ${task.title}`}
+      aria-label={`${taskLabel(task, full)}: ${task.title}`}
       {...attributes}
       {...listeners}
       onClick={(e) => open(e.metaKey || e.ctrlKey)}
@@ -264,14 +268,14 @@ function SortableBacklogRow({ task, onMoveToTodo }: { task: Task; onMoveToTodo: 
     >
       <BacklogRow
         task={task}
-        selected={taskId?.toUpperCase() === task.short_id}
+        selected={isTaskSegment(taskId, task)}
         actions={
           <span className="flex items-center gap-2">
             <AssigneePicker task={task} />
             <Button
               variant="ghost"
               size="sm"
-              aria-label={`Move ${task.short_id} to To do`}
+              aria-label={`Move ${taskLabel(task, full)} to To do`}
               title="Move to To do"
               onPointerDown={stop}
               onKeyDown={stop}

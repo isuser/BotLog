@@ -32,6 +32,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { api, apiAll, errorMessage } from "@/lib/client/api";
 import { taskHref } from "@/lib/client/board";
+import { isFullSegment, taskLabel } from "@/lib/client/refs";
 import { fullDate, timeAgo } from "@/lib/client/format";
 import { LABEL_COLORS, STATUS_COLORS, STATUS_LABELS } from "@/lib/client/task-labels";
 import type { BoardColumn, Epic, Label, Project, Task } from "@/lib/client/types";
@@ -653,6 +654,7 @@ function ArchivedSection({ projectKey }: { projectKey: string }) {
   const { data: tasks } = useSWR(tasksKey, (path: string) => apiAll<Task>(path));
   const { data: epics } = useSWR(epicsKey, (path: string) => apiAll<Epic>(path));
   const [restoring, setRestoring] = useState<string | null>(null);
+  const full = isFullSegment(projectKey);
 
   async function restore(path: string, id: string, what: string) {
     setRestoring(id);
@@ -674,15 +676,15 @@ function ArchivedSection({ projectKey }: { projectKey: string }) {
         title="Tasks"
         items={tasks?.map((task) => ({
           id: task.id,
-          href: taskHref(task),
+          href: taskHref(task, "board", full),
           label: (
             <>
-              <span className="text-muted-foreground w-16 shrink-0 font-mono text-xs">{task.short_id}</span>
+              <span className="text-muted-foreground min-w-16 shrink-0 font-mono text-xs">{taskLabel(task, full)}</span>
               <span className="truncate">{task.title}</span>
             </>
           ),
           archivedAt: task.archived_at,
-          onRestore: () => void restore(`/tasks/${task.id}/restore`, task.id, task.short_id),
+          onRestore: () => void restore(`/tasks/${task.id}/restore`, task.id, taskLabel(task, full)),
         }))}
         restoring={restoring}
         empty="No archived tasks."

@@ -11,9 +11,11 @@ import { LabelChip } from "@/components/label-chip";
 import { Badge } from "@/components/ui/badge";
 import { api } from "@/lib/client/api";
 import { taskHref, type TaskView } from "@/lib/client/board";
+import { isTaskSegment, taskLabel } from "@/lib/client/refs";
 import { PRIORITY_BADGE, TYPE_BADGE } from "@/lib/client/task-labels";
 import type { Profile, Task } from "@/lib/client/types";
 import { useProjectPeople } from "@/lib/client/use-project-people";
+import { useFullFormUrl } from "@/lib/client/use-refs";
 import { cn } from "@/lib/utils";
 import { AssigneePicker } from "./assignee-picker";
 
@@ -32,6 +34,7 @@ export function TaskCard({
   const { name } = useProjectPeople(task.project_id);
   const type = TYPE_BADGE[task.type];
   const priority = PRIORITY_BADGE[task.priority];
+  const full = useFullFormUrl();
 
   return (
     <div
@@ -43,7 +46,7 @@ export function TaskCard({
       )}
     >
       <span className="text-muted-foreground flex items-center justify-between gap-2 text-xs">
-        <span className="font-mono">{task.short_id}</span>
+        <span className="font-mono">{taskLabel(task, full)}</span>
         {task.epic && <EpicPill epic={task.epic} className="max-w-[60%]" />}
       </span>
       <p className="line-clamp-3 leading-snug break-words">{task.title}</p>
@@ -76,7 +79,8 @@ export function SortableTaskCard({ task }: { task: Task }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id });
   const router = useRouter();
   const { taskId } = useParams<{ taskId?: string }>();
-  const href = taskHref(task);
+  const full = useFullFormUrl();
+  const href = taskHref(task, "board", full);
 
   function open(newTab: boolean) {
     if (newTab) window.open(href, "_blank", "noopener");
@@ -92,7 +96,7 @@ export function SortableTaskCard({ task }: { task: Task }) {
         "relative touch-manipulation list-none rounded-lg outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
         isDragging && "opacity-40",
       )}
-      aria-label={`${task.short_id}: ${task.title}`}
+      aria-label={`${taskLabel(task, full)}: ${task.title}`}
       {...attributes}
       {...listeners}
       onClick={(e) => open(e.metaKey || e.ctrlKey)}
@@ -107,7 +111,7 @@ export function SortableTaskCard({ task }: { task: Task }) {
     >
       <TaskCard
         task={task}
-        selected={taskId?.toUpperCase() === task.short_id}
+        selected={isTaskSegment(taskId, task)}
         assignee={<AssigneePicker task={task} />}
       />
     </li>
@@ -120,7 +124,8 @@ export function SortableTaskCard({ task }: { task: Task }) {
  */
 export function usePrefetchTaskRoute(tasks: Task[] | undefined, view: TaskView) {
   const router = useRouter();
-  const href = tasks?.[0] && taskHref(tasks[0], view);
+  const full = useFullFormUrl();
+  const href = tasks?.[0] && taskHref(tasks[0], view, full);
   useEffect(() => {
     if (href) router.prefetch(href);
   }, [href, router]);
@@ -135,7 +140,8 @@ export function useOpenNewTask(view: TaskView) {
   const { data: me } = useSWR("/me", (path: string) => api<{ data: Profile }>(path).then((r) => r.data));
   // On by default, like the profile column, so it works before /me has loaded.
   const enabled = me?.open_task_after_create ?? true;
+  const full = useFullFormUrl();
   return (task: Task) => {
-    if (enabled) router.push(taskHref(task, view), { scroll: false });
+    if (enabled) router.push(taskHref(task, view, full), { scroll: false });
   };
 }
