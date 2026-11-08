@@ -153,7 +153,7 @@ export function createBotlogServer({ apiKey, agentId }: { apiKey: string; agentI
   server.registerTool(
     "list_projects",
     {
-      description: "List the projects you can see (yours and ones shared with you), with task counts per status.",
+      description: "List the projects you can see (yours and ones shared with you), with task counts per status, your role in each and who owns it.",
       inputSchema: z.object({ cursor }),
       annotations: { readOnlyHint: true },
     },

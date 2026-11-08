@@ -188,6 +188,12 @@ export default function HelpPage() {
               or remove the owner.
             </li>
             <li>
+              <strong>Projects page:</strong> once someone shares a project with you, the page splits into{" "}
+              <strong>Your projects</strong> (ones you own) and <strong>Shared with you</strong> (each card says
+              whose it is). The command menu marks shared projects the same way, and finds them by the owner&apos;s
+              name too.
+            </li>
+            <li>
               <strong>Invite links:</strong> pick a role (Member or Admin) and how long the link lasts (1 hour, 24
               hours or 7 days), then <strong>Create link</strong> and send it. Each link works once, for one person;
               it&apos;s shown only when you create it. Open links are listed with a <strong>Revoke</strong> button.
@@ -344,7 +350,7 @@ export default function HelpPage() {
             <li>
               Projects have members: <code>GET /projects/:key/members</code> lists them with their role (
               <code>owner</code>, <code>admin</code> or <code>member</code>), and each project in{" "}
-              <code>GET /projects</code> has your <code>role</code>. Invite links (
+              <code>GET /projects</code> has your <code>role</code> and its <code>owner</code> (id and name). Invite links (
               <code>/projects/:key/invites</code>), accepting them and changing or removing members need a person,
               not an agent key.
             </li>

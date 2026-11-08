@@ -7,11 +7,14 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiAll } from "@/lib/client/api";
 import { COLUMNS } from "@/lib/client/board";
+import { isShared } from "@/lib/client/projects";
 import type { Project } from "@/lib/client/types";
 import { NewProjectDialog } from "./new-project-dialog";
 
 export function ProjectsView() {
   const { data: projects, error } = useSWR("/projects", (path: string) => apiAll<Project>(path));
+  const own = projects?.filter((p) => !isShared(p)) ?? [];
+  const shared = projects?.filter(isShared) ?? [];
 
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 p-4 sm:p-8">
@@ -39,31 +42,65 @@ export function ProjectsView() {
           <p className="font-medium">No projects yet</p>
           <p className="text-muted-foreground text-sm">Create one to start adding tasks for you and your agents.</p>
         </div>
+      ) : shared.length === 0 ? (
+        // Nothing shared yet: one list, as before sharing existed.
+        <ProjectGrid projects={own} />
       ) : (
-        <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {projects.map((project) => (
-            <li key={project.id}>
-              <Link
-                href={`/projects/${project.key}`}
-                className="bg-card hover:border-ring/60 flex h-full flex-col gap-3 rounded-xl border p-4 transition-colors"
-              >
-                <div className="flex items-baseline justify-between gap-2">
-                  <span className="truncate font-medium">{project.name}</span>
-                  <span className="text-muted-foreground font-mono text-xs">{project.key}</span>
-                </div>
-                <dl className="text-muted-foreground mt-auto grid grid-cols-4 gap-2 text-xs">
-                  {COLUMNS.map(({ status, title }) => (
-                    <div key={status}>
-                      <dt className="truncate">{title}</dt>
-                      <dd className="text-foreground text-base font-medium">{project.task_counts[status]}</dd>
-                    </div>
-                  ))}
-                </dl>
-              </Link>
-            </li>
-          ))}
-        </ul>
+        <>
+          <section className="flex flex-col gap-3" aria-labelledby="your-projects">
+            <h2 id="your-projects" className="text-lg font-semibold">
+              Your projects
+            </h2>
+            {own.length ? (
+              <ProjectGrid projects={own} />
+            ) : (
+              <p className="text-muted-foreground text-sm">You haven&apos;t created a project yet.</p>
+            )}
+          </section>
+          <section className="flex flex-col gap-3" aria-labelledby="shared-projects">
+            <h2 id="shared-projects" className="text-lg font-semibold">
+              Shared with you
+            </h2>
+            <ProjectGrid projects={shared} />
+          </section>
+        </>
       )}
     </main>
+  );
+}
+
+function ProjectGrid({ projects }: { projects: Project[] }) {
+  return (
+    <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {projects.map((project) => (
+        <li key={project.id}>
+          <Link
+            href={`/projects/${project.key}`}
+            className="bg-card hover:border-ring/60 flex h-full flex-col gap-3 rounded-xl border p-4 transition-colors"
+          >
+            <div className="flex flex-col gap-0.5">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="truncate font-medium">{project.name}</span>
+                <span className="text-muted-foreground font-mono text-xs">{project.key}</span>
+              </div>
+              {isShared(project) && (
+                <span className="text-muted-foreground truncate text-xs">
+                  {project.owner ? `${project.owner.name}'s project` : "Shared"}
+                  {project.role === "admin" && " · You're an admin"}
+                </span>
+              )}
+            </div>
+            <dl className="text-muted-foreground mt-auto grid grid-cols-4 gap-2 text-xs">
+              {COLUMNS.map(({ status, title }) => (
+                <div key={status}>
+                  <dt className="truncate">{title}</dt>
+                  <dd className="text-foreground text-base font-medium">{project.task_counts[status]}</dd>
+                </div>
+              ))}
+            </dl>
+          </Link>
+        </li>
+      ))}
+    </ul>
   );
 }

@@ -1089,7 +1089,12 @@ describe("invites and members", () => {
 
     const joined = await accept(frank.token, token);
     expect(joined.status, JSON.stringify(joined.body)).toBe(200);
-    expect(joined.body.data).toMatchObject({ id: projectId, role: "member" });
+    expect(joined.body.data).toMatchObject({ id: projectId, role: "member", owner: { id: erin.id } });
+    const listedForFrank = await call(projects.GET, { token: frank.token });
+    const shared = listedForFrank.body.data.find((p: { id: string }) => p.id === projectId);
+    expect(shared).toMatchObject({ role: "member", owner: { id: erin.id, name: expect.any(String) } });
+    const own = (await call(projects.GET, { token: erin.token })).body.data.find((p: { id: string }) => p.id === projectId);
+    expect(own).toMatchObject({ role: "owner", owner: { id: erin.id } });
 
     const again = await accept(gina.token, token);
     expect(again.status).toBe(410);

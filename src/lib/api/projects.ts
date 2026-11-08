@@ -4,11 +4,12 @@ import { ambiguous, fromPostgrest, notFound } from "./errors";
 import { fullForm, parseProjectRef, type ProjectRef } from "./ids";
 import { TASK_STATUSES } from "./schemas";
 
-/** Project columns, a count of active tasks per status, and the caller's membership. */
+/** Project columns, a count of active tasks per status, the caller's membership and the owner. */
 export const PROJECT_SELECT =
-  "id, key, name, description, done_window_days, created_at, updated_at, backlog:task(count), todo:task(count), in_progress:task(count), done:task(count), membership:project_member(role)";
+  "id, key, name, description, done_window_days, created_at, updated_at, backlog:task(count), todo:task(count), in_progress:task(count), done:task(count), membership:project_member(role), owner:project_member(user:profile!project_member_user_id_fkey(id, name))";
 
 type CountEmbed = { count: number }[];
+type ProjectRole = Database["public"]["Enums"]["project_role"];
 
 type ProjectRow = {
   id: string;
@@ -18,7 +19,8 @@ type ProjectRow = {
   done_window_days: number;
   created_at: string;
   updated_at: string;
-  membership: { role: Database["public"]["Enums"]["project_role"] }[];
+  membership: { role: ProjectRole }[];
+  owner: { user: { id: string; name: string } | null }[];
 } & Record<(typeof TASK_STATUSES)[number], CountEmbed>;
 
 type Narrowable<Q> = { eq: (c: string, v: string) => Q; is: (c: string, v: null) => Q };
@@ -33,11 +35,11 @@ export function withTaskCounts<Q extends Narrowable<Q>>(query: Q): Q {
 }
 
 /**
- * Narrows PROJECT_SELECT's embeds: task counts, and the membership to the caller's own row
- * (members can see each other's).
+ * Narrows PROJECT_SELECT's embeds: task counts, the membership to the caller's own row
+ * (members can see each other's), and the owner to the owner's row.
  */
 export const narrowProjects = <Q extends Narrowable<Q>>(query: Q, userId: string): Q =>
-  withTaskCounts(query).eq("membership.user_id", userId);
+  withTaskCounts(query).eq("membership.user_id", userId).eq("owner.role", "owner");
 
 export function serializeProject(row: ProjectRow) {
   const counts = Object.fromEntries(TASK_STATUSES.map((s) => [s, row[s]?.[0]?.count ?? 0])) as Record<
@@ -50,8 +52,10 @@ export function serializeProject(row: ProjectRow) {
     name: row.name,
     description: row.description,
     done_window_days: row.done_window_days,
-    /** The caller's role: owner, admin or member. */
-    role: row.membership?.[0]?.role ?? null,
+    /** The caller's role: owner, admin or member; null for a project from before shared projects with no members yet. */
+    role: (row.membership?.[0]?.role ?? null) as ProjectRole | null,
+    /** Who owns it; null for a project from before shared projects that has no members. */
+    owner: (row.owner?.[0]?.user ?? null) as { id: string; name: string } | null,
     task_counts: { ...counts, total: TASK_STATUSES.reduce((sum, s) => sum + counts[s], 0) },
     created_at: row.created_at,
     updated_at: row.updated_at,
