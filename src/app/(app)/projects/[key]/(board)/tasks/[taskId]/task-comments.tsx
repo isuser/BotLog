@@ -20,8 +20,10 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { api, apiAll } from "@/lib/client/api";
+import { agentRole, type NameContext } from "@/lib/client/assignees";
 import { fullDate, timeAgo } from "@/lib/client/format";
 import type { Comment } from "@/lib/client/types";
+import { useProjectPeople } from "@/lib/client/use-project-people";
 
 const errorMessage = (error: unknown) => (error instanceof Error ? error.message : "Something went wrong.");
 
@@ -29,7 +31,8 @@ const errorMessage = (error: unknown) => (error instanceof Error ? error.message
  * Comments, oldest first, with a box to add one. Authors can edit their own; people can delete
  * theirs and agents'. Refetched when the window regains focus.
  */
-export function TaskComments({ taskId }: { taskId: string }) {
+export function TaskComments({ taskId, projectId }: { taskId: string; projectId: string }) {
+  const { context, name } = useProjectPeople(projectId);
   const { data: comments, error, mutate } = useSWR(`/tasks/${taskId}/comments`, (path: string) =>
     apiAll<Comment>(path),
   );
@@ -97,6 +100,7 @@ export function TaskComments({ taskId }: { taskId: string }) {
               key={comment.id}
               comment={comment}
               taskId={taskId}
+              context={context}
               onEdit={(body) => edit(comment, body)}
               onDelete={() => setDeleting(comment)}
             />
@@ -141,7 +145,7 @@ export function TaskComments({ taskId }: { taskId: string }) {
             <DialogTitle>Delete this comment?</DialogTitle>
             <DialogDescription>
               {deleting?.author?.type === "agent"
-                ? `${actorName(deleting.author)}'s comment is removed for good. `
+                ? `${name(deleting.author)}'s comment is removed for good. `
                 : "It's removed for good. "}
               The task&apos;s activity records that a comment was deleted, not what it said.
             </DialogDescription>
@@ -162,11 +166,14 @@ export function TaskComments({ taskId }: { taskId: string }) {
 function CommentItem({
   comment,
   taskId,
+  context,
   onEdit,
   onDelete,
 }: {
   comment: Comment;
   taskId: string;
+  /** In a shared project an agent's comment says whose agent it is. */
+  context: NameContext;
   onEdit: (body: string) => Promise<boolean>;
   onDelete: () => void;
 }) {
@@ -189,7 +196,7 @@ function CommentItem({
   return (
     <li className="group flex gap-3">
       {comment.author ? (
-        <ActorAvatar actor={comment.author} className="mt-0.5" />
+        <ActorAvatar actor={comment.author} label={actorName(comment.author, context)} className="mt-0.5" />
       ) : (
         <span className="bg-muted mt-0.5 size-6 shrink-0 rounded-full" />
       )}
@@ -197,7 +204,9 @@ function CommentItem({
         <div className="flex items-start gap-2">
           <p className="min-w-0 flex-1 text-sm">
             <span className="font-medium">{who}</span>
-            {comment.author?.type === "agent" && <span className="text-muted-foreground"> (agent)</span>}
+            {comment.author?.type === "agent" && (
+              <span className="text-muted-foreground"> ({agentRole(comment.author.owner, context)})</span>
+            )}
             <span className="text-muted-foreground">
               {" · "}
               <time dateTime={comment.created_at} title={fullDate(comment.created_at)}>

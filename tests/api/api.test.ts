@@ -27,6 +27,7 @@ import * as projectInvite from "@/app/api/v1/projects/[id]/invites/[inviteId]/ro
 import * as projectInvites from "@/app/api/v1/projects/[id]/invites/route";
 import * as projectMember from "@/app/api/v1/projects/[id]/members/[userId]/route";
 import * as projectMembers from "@/app/api/v1/projects/[id]/members/route";
+import * as projectAgents from "@/app/api/v1/projects/[id]/agents/route";
 import * as projectRoute from "@/app/api/v1/projects/[id]/route";
 import * as projectTasks from "@/app/api/v1/projects/[id]/tasks/route";
 import * as projects from "@/app/api/v1/projects/route";
@@ -776,14 +777,17 @@ describe.skipIf(!keyLive)("agents with API keys", () => {
     expect(started.status, JSON.stringify(started.body)).toBe(200);
 
     const comment = await call(taskComments.POST, { method: "POST", params: { id: task.short_id }, token: apiKey, body: { body: "Done: wrote it." } });
-    expect(comment.body.data.author).toMatchObject({ type: "agent", id: agentId, name: "Test bot" });
+    expect(comment.body.data.author).toMatchObject({ type: "agent", id: agentId, name: "Test bot", owner: { id: alice.id } });
 
     const done = await call(taskMove.POST, { method: "POST", params: { id: task.short_id }, token: apiKey, body: { status: "done", version: started.body.data.version } });
     expect(done.body.data.status).toBe("done");
 
     const activity = await call(taskActivity.GET, { params: { id: task.id }, token: alice.token });
     const [latest] = activity.body.data;
-    expect(latest).toMatchObject({ action: "moved", actor: { type: "ai", agent_id: agentId, user_id: alice.id, name: "Test bot" } });
+    expect(latest).toMatchObject({
+      action: "moved",
+      actor: { type: "ai", agent_id: agentId, user_id: alice.id, name: "Test bot", owner: { id: alice.id, name: expect.any(String) } },
+    });
     expect(latest.actor.api_key_id).toEqual(expect.any(String));
   });
 
@@ -1030,6 +1034,42 @@ describe("shared projects", () => {
     const listed = await call(agents.GET, { token: dave.token });
     expect(listed.status).toBe(200);
     expect(listed.body.data).toEqual([]);
+  });
+
+  test("the project's agents are every member's, with their owner, and anyone's can be assigned", async () => {
+    const project = `${carolHandle}/SHR`;
+    const davesBot = await call(agents.POST, { method: "POST", token: dave.token, body: { name: "Dave's bot" } });
+    expect(davesBot.status, JSON.stringify(davesBot.body)).toBe(201);
+    expect(davesBot.body.data.owner).toEqual({ id: dave.id, name: expect.any(String) });
+    // Not in carol's project: alice owns it, and alice isn't a member.
+    const { error } = await alice.db.from("agent").insert({ name: "Alice's outsider bot" });
+    if (error) throw error;
+
+    const list = await call(projectAgents.GET, { path: `/api/v1/projects/${project}/agents`, params: { id: project }, token: dave.token });
+    expect(list.status, JSON.stringify(list.body)).toBe(200);
+    expect(list.body.data.map((a: { name: string; owner: { id: string } }) => [a.name, a.owner.id])).toEqual([
+      ["Carol's bot", carol.id],
+      ["Dave's bot", dave.id],
+    ]);
+    expect(list.body.next_cursor).toBeNull();
+    // Dave's own SHR has only him, so only his agent.
+    const own = await call(projectAgents.GET, { path: `/api/v1/projects/${daveHandle}/SHR/agents`, params: { id: `${daveHandle}/SHR` }, token: dave.token });
+    expect(own.body.data.map((a: { name: string }) => a.name)).toEqual(["Dave's bot"]);
+    expect((await call(projectAgents.GET, { params: { id: project }, token: alice.token })).status).toBe(404);
+
+    const carolsBot = list.body.data[0];
+    const task = await createTask({ title: "For Carol's bot", assignee: { type: "agent", id: carolsBot.id } }, dave.token, project);
+    const read = await call(taskRoute.GET, { params: { id: task.id }, token: carol.token });
+    expect(read.body.data.assignee).toEqual({
+      type: "agent",
+      id: carolsBot.id,
+      name: "Carol's bot",
+      avatar: null,
+      owner: { id: carol.id, name: expect.any(String) },
+    });
+    const listed = await call(projectTasks.GET, { path: `/api/v1/projects/${project}/tasks`, params: { id: project }, token: dave.token });
+    const inList = listed.body.data.find((t: Task) => t.id === task.id);
+    expect(inList.assignee.owner).toEqual({ id: carol.id, name: expect.any(String) });
   });
 
   test("/me still returns your preferences", async () => {

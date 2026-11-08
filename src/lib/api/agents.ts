@@ -2,7 +2,11 @@ import type { Db } from "./auth";
 import { ApiError, fromPostgrest, notFound } from "./errors";
 import { isUuid } from "./ids";
 
-export const AGENT_SELECT = "id, name, description, avatar, owner_user_id, archived_at, created_at, updated_at";
+export const AGENT_SELECT =
+  "id, name, description, avatar, owner_user_id, archived_at, created_at, updated_at, owner:profile!agent_owner_user_id_fkey(id, name)";
+
+/** Who an agent belongs to. Null only if their profile isn't visible, which RLS doesn't allow for visible agents. */
+export type AgentOwner = { id: string; name: string } | null;
 
 // Never `hash`: it isn't readable by clients, and selecting it fails.
 export const API_KEY_SELECT = "id, agent_id, name, prefix, last_used_at, revoked_at, created_at";
@@ -16,6 +20,7 @@ type AgentRow = {
   archived_at: string | null;
   created_at: string;
   updated_at: string;
+  owner: AgentOwner;
 };
 
 type ApiKeyRow = {
@@ -35,6 +40,8 @@ export function serializeAgent(row: AgentRow) {
     description: row.description,
     avatar: row.avatar,
     owner_user_id: row.owner_user_id,
+    /** The person the agent works for, so shared projects can show "Botalicious (Pedro's agent)". */
+    owner: row.owner ?? null,
     archived_at: row.archived_at,
     created_at: row.created_at,
     updated_at: row.updated_at,

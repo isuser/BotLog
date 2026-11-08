@@ -20,7 +20,7 @@ export const AGENT_TOOLS: { name: string; does: string }[] = [
   { name: "list_my_tasks", does: "Tasks assigned to the agent, across projects. Where it finds work." },
   { name: "list_projects", does: "Projects you can see (yours and ones shared with you), with task counts, your role and the owner." },
   { name: "list_tasks", does: "A project's tasks, filtered by status, column, type, priority, assignee, epic, label, or a search (q)." },
-  { name: "get_task", does: "Everything about one task: fields, epic, labels, description, comments and recent activity." },
+  { name: "get_task", does: "Everything about one task: fields, epic, labels, description, comments and recent activity. Agents in it come with their owner." },
   { name: "create_task", does: "A new task in a column or status, optionally in an epic, with labels and an assignee." },
   { name: "update_task", does: "Edit a task's fields, epic, labels or assignee." },
   { name: "move_task", does: "Move a task to another column (or a status's column) and its place in the column." },

@@ -8,8 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { describeActivity, nameLookup } from "@/lib/client/activity";
 import { api, apiAll } from "@/lib/client/api";
+import { agentLabel, agentRole, type NameContext } from "@/lib/client/assignees";
 import { fullDate, timeAgo } from "@/lib/client/format";
-import type { Activity, Agent, BoardColumn, Epic, Label, Task } from "@/lib/client/types";
+import type { Activity, BoardColumn, Epic, Label, Task } from "@/lib/client/types";
+import { useProjectPeople } from "@/lib/client/use-project-people";
 import type { CurrentUser } from "./task-fields";
 
 /** Shown when a task opens; each "Load more" fetches the next few older entries. */
@@ -20,7 +22,7 @@ type ActivityPage = { data: Activity[]; next_cursor: string | null };
 
 function entryActor({ actor }: Activity): Actor | null {
   if (actor.type === "ai" && actor.agent_id) {
-    return { type: "agent", id: actor.agent_id, name: actor.name ?? "", avatar: null };
+    return { type: "agent", id: actor.agent_id, name: actor.name ?? "", avatar: null, owner: actor.owner };
   }
   if (actor.type === "human" && actor.user_id) return { type: "user", id: actor.user_id, name: actor.name ?? "", email: "" };
   return null;
@@ -30,6 +32,9 @@ function actorLabel({ actor }: Activity) {
   if (actor.type === "system") return "Botlog";
   return actor.name || (actor.type === "ai" ? "An agent" : "Someone");
 }
+
+const actorTitle = (entry: Activity, context: NameContext) =>
+  entry.actor.type === "ai" ? `${actorLabel(entry)} (${agentRole(entry.actor.owner, context)})` : actorLabel(entry);
 
 /**
  * The task's latest changes, oldest first, with older ones loaded a page at a time on request.
@@ -44,7 +49,7 @@ export function TaskActivity({ task, currentUser }: { task: Task; currentUser: C
     },
     (path: string) => api<ActivityPage>(path),
   );
-  const { data: agents } = useSWR("/agents", (path: string) => apiAll<Agent>(path));
+  const { members, agents, context } = useProjectPeople(task.project_id, { withAgents: true });
   // Shared with the Epic and Labels fields, so these are usually cached already.
   const { data: labels } = useSWR(`/projects/${task.project_key}/labels`, (path: string) => apiAll<Label>(path));
   const { data: epics } = useSWR(`/projects/${task.project_key}/epics`, (path: string) => apiAll<Epic>(path));
@@ -57,7 +62,9 @@ export function TaskActivity({ task, currentUser }: { task: Task; currentUser: C
     void mutate();
   }, [task.version, mutate]);
 
-  const names = nameLookup(currentUser, agents ?? [], task, { labels, epics, columns });
+  // Agents by their label, so "assigned it to Botalicious (Pedro's agent)" in shared projects.
+  const agentNames = (agents ?? []).map((agent) => ({ id: agent.id, name: agentLabel(agent, context) }));
+  const names = nameLookup(currentUser, agentNames, task, { labels, epics, columns, members, context });
   const hasMore = Boolean(data?.at(-1)?.next_cursor);
   const loadingMore = isValidating && size > (data?.length ?? 0);
   const entries = (data ?? [])
@@ -90,13 +97,13 @@ export function TaskActivity({ task, currentUser }: { task: Task; currentUser: C
             return (
               <li key={entry.id} className="text-muted-foreground flex items-start gap-3 text-sm">
                 {actor ? (
-                  <ActorAvatar actor={actor} className="size-5" />
+                  <ActorAvatar actor={actor} label={actorTitle(entry, context)} className="size-5" />
                 ) : (
                   <span className="bg-muted size-5 shrink-0 rounded-full" />
                 )}
                 <p className="min-w-0 flex-1 break-words">
                   <span className="text-foreground font-medium">{actorLabel(entry)}</span>
-                  {entry.actor.type === "ai" && " (agent)"} {text}
+                  {entry.actor.type === "ai" && ` (${agentRole(entry.actor.owner, context)})`} {text}
                   {" · "}
                   <time dateTime={entry.created_at} title={fullDate(entry.created_at)}>
                     {timeAgo(entry.created_at)}

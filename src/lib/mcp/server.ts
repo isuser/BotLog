@@ -209,7 +209,7 @@ export function createBotlogServer({ apiKey, agentId }: { apiKey: string; agentI
     "get_task",
     {
       description:
-        "Get a task with everything needed to work on it: fields, epic, labels, description, comments (oldest first) and recent activity (newest first).",
+        "Get a task with everything needed to work on it: fields, epic, labels, description, comments (oldest first) and recent activity (newest first). An agent assignee, comment author or activity actor includes its owner (the person it works for).",
       inputSchema: z.object({ id: taskId }),
       annotations: { readOnlyHint: true },
     },

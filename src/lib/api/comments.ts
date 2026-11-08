@@ -6,7 +6,7 @@ import { isUuid } from "./ids";
 export const COMMENT_SELECT = `
   id, task_id, body, created_at, updated_at,
   author_user:profile!comment_author_user_id_fkey(id, name, email),
-  author_agent:agent!comment_author_agent_id_fkey(id, name, avatar)
+  author_agent:agent!comment_author_agent_id_fkey(id, name, avatar, owner:profile!agent_owner_user_id_fkey(id, name))
 `;
 
 type CommentRow = Pick<
@@ -14,7 +14,7 @@ type CommentRow = Pick<
   "id" | "task_id" | "body" | "created_at" | "updated_at"
 > & {
   author_user: { id: string; name: string; email: string } | null;
-  author_agent: { id: string; name: string; avatar: string | null } | null;
+  author_agent: { id: string; name: string; avatar: string | null; owner: { id: string; name: string } | null } | null;
 };
 
 /**

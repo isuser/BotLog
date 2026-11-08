@@ -3,7 +3,7 @@
 import { ChevronRightIcon, XIcon } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
-import { ActorAvatar, actorName, UnassignedAvatar } from "@/components/actor-avatar";
+import { ActorAvatar, UnassignedAvatar } from "@/components/actor-avatar";
 import { EpicPill } from "@/components/epic-pill";
 import { LabelChip } from "@/components/label-chip";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +12,7 @@ import { COLUMNS, groupByStatus, taskHref } from "@/lib/client/board";
 import { formatDate } from "@/lib/client/format";
 import { PRIORITY_BADGE, STATUS_COLORS, TYPE_BADGE } from "@/lib/client/task-labels";
 import type { Task } from "@/lib/client/types";
+import { useProjectPeople } from "@/lib/client/use-project-people";
 import { cn } from "@/lib/utils";
 
 /**
@@ -96,6 +97,7 @@ function TaskRow({
   onRemove?: (task: Task) => void;
   removeLabel: string;
 }) {
+  const { name } = useProjectPeople(task.project_id);
   const type = TYPE_BADGE[task.type];
   const priority = PRIORITY_BADGE[task.priority];
   const overdue = task.due_date && task.status !== "done" && task.due_date < new Date().toISOString().slice(0, 10);
@@ -130,8 +132,8 @@ function TaskRow({
         </span>
         {task.assignee ? (
           <span className="shrink-0">
-            <ActorAvatar actor={task.assignee} />
-            <span className="sr-only">Assigned to {actorName(task.assignee)}</span>
+            <ActorAvatar actor={task.assignee} label={name(task.assignee)} />
+            <span className="sr-only">Assigned to {name(task.assignee)}</span>
           </span>
         ) : (
           <span className="shrink-0">

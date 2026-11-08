@@ -34,6 +34,8 @@ export function serializeActivity(row: ActivityRow) {
       agent_id: row.agent_id,
       api_key_id: row.api_key_id,
       name: row.actor_type === "ai" ? (row.agent?.name ?? null) : (row.user?.name ?? null),
+      /** For AI changes, the person the agent works for; null otherwise. */
+      owner: row.actor_type === "ai" && row.user_id && row.user ? { id: row.user_id, name: row.user.name } : null,
     },
     changes: row.changes,
     created_at: row.created_at,
