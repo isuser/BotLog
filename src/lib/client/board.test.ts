@@ -179,4 +179,7 @@ describe("taskHref", () => {
     expect(taskHref(t, "board", true)).toBe("/projects/ana%2FBOT/tasks/ana%2FBOT-1");
     expect(taskHref(t, "list", true)).toBe("/projects/ana%2FBOT/list/tasks/ana%2FBOT-1");
   });
+  test("carries the board's view query", () => {
+    expect(taskHref(t, "board", false, "?sort=priority")).toBe("/projects/BOT/tasks/BOT-1?sort=priority");
+  });
 });
