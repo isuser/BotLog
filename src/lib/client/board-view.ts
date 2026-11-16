@@ -20,6 +20,14 @@ export type BoardView = {
 export const BOARD_SORTS = ["manual", "newest", "oldest", "priority"] as const;
 export type BoardSort = (typeof BOARD_SORTS)[number];
 
+/** The sort menu's names for each sort, in menu order. */
+export const BOARD_SORT_LABELS: Record<BoardSort, string> = {
+  manual: "Manual",
+  newest: "Newest first",
+  oldest: "Oldest first",
+  priority: "Priority",
+};
+
 /** Stands for "No labels" or "No epic" in a filter. */
 export const NONE = "none";
 
