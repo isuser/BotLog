@@ -35,8 +35,8 @@ import {
   visibleColumns,
   type Columns,
 } from "@/lib/client/board";
-import { applyBoardView } from "@/lib/client/board-view";
-import type { BoardColumn as Column, Project, Task } from "@/lib/client/types";
+import { applyBoardView, boardViewQuery, isFiltered, pruneBoardView } from "@/lib/client/board-view";
+import type { BoardColumn as Column, Epic, Label, Project, Task } from "@/lib/client/types";
 import { useBoardView } from "@/lib/client/use-board-view";
 import { BoardColumn } from "./board-column";
 import { BoardToolbar } from "./board-toolbar";
@@ -54,9 +54,22 @@ export function Board({ projectKey }: { projectKey: string }) {
   const openNewTask = useOpenNewTask("board");
   // Filters and sort from the URL. They only change what each column shows, not the columns
   // themselves, so drags and moves still work on every task.
-  const [view, setView] = useBoardView();
+  const [urlView, setView] = useBoardView();
+  const { data: labels } = useSWR(`/projects/${projectKey}/labels`, (path: string) => apiAll<Label>(path));
+  const { data: epics } = useSWR(`/projects/${projectKey}/epics`, (path: string) => apiAll<Epic>(path));
+  // Labels and epics the project no longer has don't filter (or count as picked).
+  const view = useMemo(
+    () => pruneBoardView(urlView, { labels: labels?.map((l) => l.id), epics: epics?.map((e) => e.id) }),
+    [urlView, labels, epics],
+  );
+  const filtered = isFiltered(view);
   // Sorted by ID or priority, the sort decides each column's order: drags change the column only.
   const sorted = view.sort !== "manual";
+  // Tasks added here while filtered stay shown even if they don't match, so they don't seem to
+  // vanish, until the view next changes.
+  const viewQuery = boardViewQuery(view);
+  const [added, setAdded] = useState<{ query: string; ids: string[] }>({ query: "", ids: [] });
+  const keep = added.query === viewQuery ? added.ids : [];
   // Every column, hidden ones and the Backlog included, so each task has a place.
   const { data: projectColumns, error: columnsError } = useSWR(`/projects/${projectKey}/columns`, (path: string) =>
     apiAll<Column>(path),
@@ -159,6 +172,7 @@ export function Board({ projectKey }: { projectKey: string }) {
         method: "POST",
         json: { title, column_id: columnId },
       });
+      setAdded((current) => ({ query: viewQuery, ids: [...(current.query === viewQuery ? current.ids : []), data.id] }));
       await mutate(
         (current) => {
           const grouped = groupByColumn(current ?? [], columnIds);
@@ -192,7 +206,7 @@ export function Board({ projectKey }: { projectKey: string }) {
 
   return (
     <main className="flex min-h-0 flex-1 flex-col pb-4">
-      <BoardToolbar view={view} onChange={setView} />
+      <BoardToolbar view={view} onChange={setView} labels={labels} epics={epics} />
       {!tasks || !projectColumns ? (
         <BoardSkeleton />
       ) : (
@@ -208,27 +222,31 @@ export function Board({ projectKey }: { projectKey: string }) {
           <div className="flex flex-1 snap-x snap-mandatory scroll-px-4 overflow-x-auto px-4 sm:snap-none">
             {/* Centred while the columns fit; scrolls from the left edge when they don't. */}
             <div className="mx-auto flex w-max gap-4">
-              {shown.map((column) => (
-                <BoardColumn
-                  key={column.id}
-                  column={column}
-                  tasks={applyBoardView(column.kind === "done" ? recentDone : (columns[column.id] ?? []), view)}
-                  onAdd={addTask}
-                  sorted={sorted}
-                  // The `c` shortcut focuses the first column's quick add.
-                  focusOnShortcut={column.id === shown[0]?.id}
-                  footer={
-                    column.kind === "done" && olderDone > 0 ? (
-                      <p className="text-muted-foreground px-1 text-xs">
-                        {olderDone} {olderDone === 1 ? "task" : "tasks"} done over {doneWindow} days ago.{" "}
-                        <Link href={`/projects/${projectKey}/list`} className="underline">
-                          See them in List
-                        </Link>
-                      </p>
-                    ) : null
-                  }
-                />
-              ))}
+              {shown.map((column) => {
+                const all = column.kind === "done" ? recentDone : (columns[column.id] ?? []);
+                return (
+                  <BoardColumn
+                    key={column.id}
+                    column={column}
+                    tasks={applyBoardView(all, view, keep)}
+                    total={filtered ? all.length : undefined}
+                    onAdd={addTask}
+                    sorted={sorted}
+                    // The `c` shortcut focuses the first column's quick add.
+                    focusOnShortcut={column.id === shown[0]?.id}
+                    footer={
+                      column.kind === "done" && olderDone > 0 ? (
+                        <p className="text-muted-foreground px-1 text-xs">
+                          {olderDone} {olderDone === 1 ? "task" : "tasks"} done over {doneWindow} days ago.{" "}
+                          <Link href={`/projects/${projectKey}/list`} className="underline">
+                            See them in List
+                          </Link>
+                        </p>
+                      ) : null
+                    }
+                  />
+                );
+              })}
             </div>
           </div>
           <DragOverlay>{activeTask ? <TaskCard task={activeTask} dragging /> : null}</DragOverlay>

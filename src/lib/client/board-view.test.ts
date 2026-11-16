@@ -2,13 +2,17 @@ import { describe, expect, test } from "vitest";
 import {
   applyBoardView,
   boardViewQuery,
+  clearFilters,
   DEFAULT_BOARD_VIEW,
   filterTasks,
   NONE,
   parseBoardView,
+  pruneBoardView,
   sortBoardTasks,
+  toggleFilter,
   type BoardView,
 } from "./board-view";
+import { groupByColumn, moveToColumn, placement, reorderInColumn } from "./board";
 import type { Task } from "./types";
 
 const L1 = "11111111-1111-4111-8111-111111111111";
@@ -23,6 +27,7 @@ let n = 0;
 const task = (fields: Partial<Omit<Task, "labels">> & { labels?: string[] } = {}): Task =>
   ({
     number: ++n,
+    id: `task-${n}`,
     title: `Task ${n}`,
     priority: "none",
     epic_id: null,
@@ -107,6 +112,11 @@ describe("filterTasks", () => {
     expect(titles(filterTasks(tasks, view({ labels: [L2], epics: [E1] })))).toEqual([]);
   });
 
+  test("tasks in keep always show, in their place", () => {
+    const keep = [tasks[1].id];
+    expect(titles(filterTasks(tasks, view({ priorities: ["urgent"] }), keep))).toEqual(["b", "c"]);
+  });
+
   test("No labels and No epic", () => {
     expect(titles(filterTasks(tasks, view({ labels: [NONE] })))).toEqual(["d"]);
     expect(titles(filterTasks(tasks, view({ labels: [NONE, L2] })))).toEqual(["b", "c", "d"]);
@@ -153,4 +163,79 @@ test("applyBoardView filters, then sorts", () => {
     "high",
     "low",
   ]);
+});
+
+describe("pruneBoardView", () => {
+  const v = view({ labels: [L1, L2, NONE], epics: [E1, E2], priorities: ["high"] });
+
+  test("drops labels and epics the project doesn't have, keeping none", () => {
+    expect(pruneBoardView(v, { labels: [L1], epics: [E2] })).toEqual({ ...v, labels: [L1, NONE], epics: [E2] });
+  });
+
+  test("leaves a kind alone until its list has loaded", () => {
+    expect(pruneBoardView(v, { labels: [L1] })).toEqual({ ...v, labels: [L1, NONE] });
+    expect(pruneBoardView(v, {})).toBe(v);
+  });
+
+  test("returns the same view when nothing is dropped", () => {
+    expect(pruneBoardView(v, { labels: [L1, L2], epics: [E1, E2] })).toBe(v);
+  });
+});
+
+describe("toggleFilter / clearFilters", () => {
+  test("adds and removes values, in canonical order", () => {
+    const a = toggleFilter(DEFAULT_BOARD_VIEW, "labels", L2);
+    const b = toggleFilter(a, "labels", L1);
+    expect(b.labels).toEqual([L1, L2]);
+    expect(toggleFilter(b, "labels", L2).labels).toEqual([L1]);
+    const p = toggleFilter(toggleFilter(DEFAULT_BOARD_VIEW, "priorities", "low"), "priorities", "urgent");
+    expect(p.priorities).toEqual(["urgent", "low"]);
+  });
+
+  test("toggling back gives the default URL again", () => {
+    const on = toggleFilter(DEFAULT_BOARD_VIEW, "epics", NONE);
+    expect(boardViewQuery(on)).toBe("?epic=none");
+    expect(boardViewQuery(toggleFilter(on, "epics", NONE))).toBe("");
+  });
+
+  test("clearing keeps the sort", () => {
+    const v = view({ sort: "priority", labels: [L1], epics: [E1], priorities: ["high"] });
+    expect(clearFilters(v)).toEqual(view({ sort: "priority" }));
+  });
+});
+
+/**
+ * Dragging while filtered works on the full columns, with the drop target one of the visible
+ * cards. The card should land between the visible cards around it, whatever is hidden.
+ */
+describe("drag and drop while filtered", () => {
+  const card = (id: string, column: string, priority: Task["priority"]) =>
+    ({ id, title: id, column_id: column, status: column === "todo" ? "todo" : "in_progress", priority, labels: [], epic_id: null }) as unknown as Task;
+  // Showing high only: A, C, E are visible; b and d are hidden between them.
+  const high = view({ priorities: ["high"] });
+  const columns = () =>
+    groupByColumn(
+      [card("A", "todo", "high"), card("b", "todo", "low"), card("C", "todo", "high"), card("d", "todo", "low"), card("E", "todo", "high"), card("F", "doing", "high")],
+      ["todo", "doing"],
+    );
+  const visible = (cols: ReturnType<typeof columns>, column: string) => titles(filterTasks(cols[column], high));
+
+  test("down over a visible card: lands just below it", () => {
+    const moved = reorderInColumn(columns(), "A", "C");
+    expect(visible(moved, "todo")).toEqual(["C", "A", "E"]);
+    expect(placement(moved, "A")).toEqual({ column_id: "todo", after_id: "C" });
+  });
+
+  test("up over a visible card: lands just above it", () => {
+    const moved = reorderInColumn(columns(), "E", "C");
+    expect(visible(moved, "todo")).toEqual(["A", "E", "C"]);
+    const ids = moved.todo.map((t) => t.id);
+    expect(ids.indexOf("E")).toBeLessThan(ids.indexOf("C"));
+    expect(ids.indexOf("E")).toBeGreaterThan(ids.indexOf("A"));
+  });
+
+  test("into another column, over a visible card: lands just above it", () => {
+    const moved = moveToColumn(columns(), "F", "C");
+    expect(visible(moved, "todo")).toEqual(["A", "F", "C", "E"]);
+  });
 });

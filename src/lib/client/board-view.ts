@@ -80,19 +80,49 @@ export const isFiltered = (view: BoardView) =>
 
 /**
  * The tasks the view's filters let through, in the same order. Within one kind any value matches
- * (label A or B); across kinds all must (a matching label and a matching priority).
+ * (label A or B); across kinds all must (a matching label and a matching priority). Tasks in
+ * `keep` always pass, like one just added that doesn't match, so it doesn't seem to vanish.
  */
-export function filterTasks(tasks: Task[], view: BoardView): Task[] {
+export function filterTasks(tasks: Task[], view: BoardView, keep: readonly string[] = []): Task[] {
   if (!isFiltered(view)) return tasks;
   const { labels, epics, priorities } = view;
   return tasks.filter(
     (t) =>
-      (labels.length === 0 ||
+      keep.includes(t.id) ||
+      ((labels.length === 0 ||
         (t.labels.length === 0 ? labels.includes(NONE) : t.labels.some((l) => labels.includes(l.id)))) &&
       (epics.length === 0 || epics.includes(t.epic_id ?? NONE)) &&
-      (priorities.length === 0 || priorities.includes(t.priority)),
+      (priorities.length === 0 || priorities.includes(t.priority))),
   );
 }
+
+/**
+ * The view without labels or epics the project no longer has (deleted, archived, or from another
+ * project's link), so they neither hide every task nor count as picked. A list not loaded yet
+ * (undefined) leaves its kind as is.
+ */
+export function pruneBoardView(view: BoardView, known: { labels?: readonly string[]; epics?: readonly string[] }): BoardView {
+  const keep = (ids: string[], valid?: readonly string[]) =>
+    valid ? ids.filter((id) => id === NONE || valid.includes(id)) : ids;
+  const labels = keep(view.labels, known.labels);
+  const epics = keep(view.epics, known.epics);
+  return labels.length === view.labels.length && epics.length === view.epics.length ? view : { ...view, labels, epics };
+}
+
+/** The view with one value of a filter switched on or off, the kind's order kept canonical. */
+export function toggleFilter<K extends "labels" | "epics" | "priorities">(
+  view: BoardView,
+  kind: K,
+  value: BoardView[K][number],
+): BoardView {
+  const current = view[kind] as string[];
+  const next = current.includes(value) ? current.filter((v) => v !== value) : [...current, value];
+  const ordered = kind === "priorities" ? PRIORITIES.filter((p) => next.includes(p)) : next.sort();
+  return { ...view, [kind]: ordered };
+}
+
+/** The view with every filter off; the sort stays. */
+export const clearFilters = (view: BoardView): BoardView => ({ ...view, labels: [], epics: [], priorities: [] });
 
 /** One column's tasks in the view's order. Manual keeps the board order they come in. */
 export function sortBoardTasks(tasks: Task[], sort: BoardSort): Task[] {
@@ -109,5 +139,6 @@ export function sortBoardTasks(tasks: Task[], sort: BoardSort): Task[] {
   }
 }
 
-/** A column's tasks as the view shows them: filtered, then sorted. */
-export const applyBoardView = (tasks: Task[], view: BoardView) => sortBoardTasks(filterTasks(tasks, view), view.sort);
+/** A column's tasks as the view shows them: filtered (tasks in `keep` always shown), then sorted. */
+export const applyBoardView = (tasks: Task[], view: BoardView, keep: readonly string[] = []) =>
+  sortBoardTasks(filterTasks(tasks, view, keep), view.sort);
