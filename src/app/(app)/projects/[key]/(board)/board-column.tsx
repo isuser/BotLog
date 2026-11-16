@@ -16,6 +16,7 @@ export function BoardColumn({
   focusOnShortcut,
   footer,
   sorted = false,
+  total,
 }: {
   column: Pick<Column, "id" | "name" | "counts_as" | "hidden">;
   tasks: Task[];
@@ -24,6 +25,8 @@ export function BoardColumn({
   footer?: ReactNode;
   /** The board is sorted: cards keep their places while one is dragged over them. */
   sorted?: boolean;
+  /** While the board is filtered: how many tasks the column has, shown or not. */
+  total?: number;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: column.id });
   // Custom columns take the colour of the status they count as.
@@ -49,7 +52,7 @@ export function BoardColumn({
           {column.hidden && <span className="text-muted-foreground ml-2 font-sans text-xs font-normal normal-case tracking-normal">(hidden)</span>}
         </h2>
         <span className="bg-background text-muted-foreground rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums">
-          {tasks.length}
+          {total === undefined ? tasks.length : `${tasks.length} of ${total}`}
         </span>
       </header>
 
@@ -68,6 +71,9 @@ export function BoardColumn({
           {tasks.map((task) => (
             <SortableTaskCard key={task.id} task={task} />
           ))}
+          {total !== undefined && tasks.length === 0 && (
+            <li className="text-muted-foreground list-none px-1 py-6 text-center text-sm">No tasks match</li>
+          )}
         </ul>
       </SortableContext>
       {footer}

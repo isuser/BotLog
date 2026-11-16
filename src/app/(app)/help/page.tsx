@@ -142,6 +142,16 @@ export default function HelpPage() {
               details; turn that off in <Link href="/settings">Settings</Link> under Tasks.
             </li>
             <li>
+              <strong>Filtering the board:</strong> <strong>Labels</strong>, <strong>Epic</strong> and{" "}
+              <strong>Priority</strong> above the board show only the tasks you pick, including &ldquo;No labels&rdquo;
+              and &ldquo;No epic&rdquo;. A task matches if it has any of the values you ticked in a filter, and it has
+              to match every filter that&apos;s on: Labels bug + Priority High shows high-priority bugs. Each column
+              then counts &ldquo;3 of 8&rdquo;, and <strong>Clear</strong> turns the filters off. A task you add while
+              filtering stays on the board until you change the filters, even if it doesn&apos;t match. Dragging still
+              works: a card lands between the cards you can see around it. Filters only change what you see, and
+              they&apos;re kept in the page&apos;s link, so a filtered board can be bookmarked or shared.
+            </li>
+            <li>
               <strong>Sorting the board:</strong> <strong>Sort</strong> above the board orders each column by{" "}
               <strong>Manual</strong> (the order you drag cards into, the default), <strong>Newest first</strong> or{" "}
               <strong>Oldest first</strong> (by ID), or <strong>Priority</strong> (urgent first, then by ID). It only
