@@ -37,7 +37,7 @@ import {
 } from "@/lib/client/board";
 import { applyBoardView, boardViewQuery, isFiltered, pruneBoardView } from "@/lib/client/board-view";
 import type { BoardColumn as Column, Epic, Label, Project, Task } from "@/lib/client/types";
-import { useBoardView } from "@/lib/client/use-board-view";
+import { useRememberedBoardView } from "@/lib/client/use-board-view";
 import { BoardColumn } from "./board-column";
 import { BoardToolbar } from "./board-toolbar";
 import { TaskCard, useOpenNewTask, usePrefetchTaskRoute } from "./task-card";
@@ -54,9 +54,20 @@ export function Board({ projectKey }: { projectKey: string }) {
   const openNewTask = useOpenNewTask("board");
   // Filters and sort from the URL. They only change what each column shows, not the columns
   // themselves, so drags and moves still work on every task.
-  const [urlView, setView] = useBoardView();
-  const { data: labels } = useSWR(`/projects/${projectKey}/labels`, (path: string) => apiAll<Label>(path));
-  const { data: epics } = useSWR(`/projects/${projectKey}/epics`, (path: string) => apiAll<Epic>(path));
+  const { data: labels, error: labelsError } = useSWR(`/projects/${projectKey}/labels`, (path: string) =>
+    apiAll<Label>(path),
+  );
+  const { data: epics, error: epicsError } = useSWR(`/projects/${projectKey}/epics`, (path: string) =>
+    apiAll<Epic>(path),
+  );
+  // The view is remembered per project: a plain link to the board brings back your last one.
+  const labelIds = useMemo(() => (labelsError ? null : labels?.map((l) => l.id)), [labels, labelsError]);
+  const epicIds = useMemo(() => (epicsError ? null : epics?.map((e) => e.id)), [epics, epicsError]);
+  const {
+    view: urlView,
+    setView,
+    restoring,
+  } = useRememberedBoardView({ projectId: project?.id, labels: labelIds, epics: epicIds });
   // Labels and epics the project no longer has don't filter (or count as picked).
   const view = useMemo(
     () => pruneBoardView(urlView, { labels: labels?.map((l) => l.id), epics: epics?.map((e) => e.id) }),
@@ -207,7 +218,7 @@ export function Board({ projectKey }: { projectKey: string }) {
   return (
     <main className="flex min-h-0 flex-1 flex-col pb-4">
       <BoardToolbar view={view} onChange={setView} labels={labels} epics={epics} />
-      {!tasks || !projectColumns ? (
+      {!tasks || !projectColumns || restoring ? (
         <BoardSkeleton />
       ) : (
         <DndContext

@@ -160,6 +160,12 @@ export default function HelpPage() {
               within one: the sort decides where it sits. Switch back to Manual to rank cards by hand.
             </li>
             <li>
+              <strong>Your board view is remembered:</strong> each project&apos;s board comes back with the filters
+              and sort you last used, in this browser only. A link that has its own filters or sort always shows
+              those, so a shared board looks the way it was shared. With every filter off and the sort on Manual,
+              there&apos;s nothing to remember. Labels or epics deleted or archived since are left out.
+            </li>
+            <li>
               <strong>Columns:</strong> add your own (like In review or QA) in the project&apos;s{" "}
               <strong>Settings</strong> under Columns: rename, reorder, or delete them (their tasks move to a column
               you pick). A column left of In progress counts as To do, one right of it as In progress: that&apos;s the

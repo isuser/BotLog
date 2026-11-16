@@ -8,8 +8,11 @@ import {
   NONE,
   parseBoardView,
   pruneBoardView,
+  readSavedView,
+  savedViewQuery,
   sortBoardTasks,
   toggleFilter,
+  writeSavedView,
   type BoardView,
 } from "./board-view";
 import { groupByColumn, moveToColumn, placement, reorderInColumn } from "./board";
@@ -237,5 +240,56 @@ describe("drag and drop while filtered", () => {
   test("into another column, over a visible card: lands just above it", () => {
     const moved = moveToColumn(columns(), "F", "C");
     expect(visible(moved, "todo")).toEqual(["A", "F", "C", "E"]);
+  });
+});
+
+describe("remembering the view", () => {
+  const memory = () => {
+    const items = new Map<string, string>();
+    const storage = {
+      getItem: (k: string) => items.get(k) ?? null,
+      setItem: (k: string, v: string) => void items.set(k, v),
+      removeItem: (k: string) => void items.delete(k),
+    };
+    return { items, storage: () => storage };
+  };
+  const P = "55555555-5555-4555-8555-555555555555";
+
+  test("saves per project, without the ?, and the default view removes it", () => {
+    const { items, storage } = memory();
+    writeSavedView(P, "?sort=priority", storage);
+    expect(items.get(`botlog-board-view:${P}`)).toBe("sort=priority");
+    expect(readSavedView(P, storage)).toBe("sort=priority");
+    expect(readSavedView("other", storage)).toBeNull();
+    writeSavedView(P, "", storage);
+    expect(items.size).toBe(0);
+    expect(readSavedView(P, storage)).toBeNull();
+  });
+
+  test("blocked storage fails quietly", () => {
+    const blocked = () => {
+      throw new DOMException("denied", "SecurityError");
+    };
+    expect(readSavedView(P, blocked)).toBeNull();
+    expect(() => writeSavedView(P, "?sort=newest", blocked)).not.toThrow();
+    const throwing = () => ({
+      getItem: blocked,
+      setItem: blocked,
+      removeItem: blocked,
+    });
+    expect(readSavedView(P, throwing)).toBeNull();
+    expect(() => writeSavedView(P, "", throwing)).not.toThrow();
+  });
+
+  test("restoring drops invalid values and labels or epics the project no longer has", () => {
+    const saved = `sort=newest&labels=${L1},${L2},none&epic=${E1}&priority=high,bogus`;
+    expect(savedViewQuery(saved, { labels: [L1], epics: [] })).toBe(`?sort=newest&labels=${L1},none&priority=high`);
+    // A list that couldn't load keeps its kind as saved.
+    expect(savedViewQuery(saved, { labels: [L1] })).toBe(`?sort=newest&labels=${L1},none&epic=${E1}&priority=high`);
+  });
+
+  test("nothing saved, or nothing left after cleaning, restores nothing", () => {
+    expect(savedViewQuery(null, {})).toBe("");
+    expect(savedViewQuery(`labels=${L2}&nonsense=1`, { labels: [L1], epics: [] })).toBe("");
   });
 });
