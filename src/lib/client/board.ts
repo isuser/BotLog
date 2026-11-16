@@ -87,6 +87,29 @@ export function moveToColumn(
   };
 }
 
+/**
+ * Where a dragged task goes while the board is sorted (not Manual). The sort decides the order a
+ * column shows, so the drop point only picks the column: over another column, the task goes to
+ * the top of that column's manual order (as a move with no neighbours does); back over its own
+ * column, it keeps its old place. Works from `start`, the columns at drag start; over the
+ * dragged card itself (its own placeholder) nothing changes, so it returns `current`.
+ */
+export function moveWhileSorted(
+  start: Columns,
+  current: Columns,
+  activeId: string,
+  overId: string,
+  statusOf: (columnId: string) => TaskStatus | undefined = () => undefined,
+): Columns {
+  if (overId === activeId) return current;
+  const from = findColumn(start, activeId);
+  const to = findColumn(start, overId);
+  if (!from || !to) return current;
+  if (from === to) return start;
+  const first = start[to].find((t) => t.id !== activeId);
+  return moveToColumn(start, activeId, first?.id ?? to, statusOf);
+}
+
 /** Moves a task to where another task in the same column is. */
 export function reorderInColumn(columns: Columns, activeId: string, overId: string): Columns {
   const column = findColumn(columns, activeId);

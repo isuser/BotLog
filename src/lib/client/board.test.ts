@@ -7,6 +7,7 @@ import {
   groupByStatus,
   inDoneWindow,
   moveToColumn,
+  moveWhileSorted,
   placement,
   reorderInColumn,
   samePlacement,
@@ -91,6 +92,48 @@ describe("moveToColumn", () => {
   test("does nothing within the same column", () => {
     const columns = board();
     expect(moveToColumn(columns, "a", "b")).toBe(columns);
+  });
+});
+
+describe("moveWhileSorted", () => {
+  const start = () =>
+    groupByColumn(
+      [task("a", "todo"), task("b", "todo"), task("c", "review"), task("d", "review")],
+      ["backlog", "todo", "review", "done"],
+    );
+
+  test("over another column's task, goes to the top of that column, whatever the drop point", () => {
+    const columns = start();
+    for (const over of ["c", "d", "review"]) {
+      const moved = moveWhileSorted(columns, columns, "a", over, statusOf);
+      expect(ids(moved.todo)).toEqual(["b"]);
+      expect(ids(moved.review)).toEqual(["a", "c", "d"]);
+      expect(moved.review[0]).toMatchObject({ column_id: "review", status: "in_progress" });
+      expect(placement(moved, "a")).toEqual({ column_id: "review", before_id: "c" });
+    }
+  });
+
+  test("into an empty column", () => {
+    const columns = start();
+    const moved = moveWhileSorted(columns, columns, "a", "done", statusOf);
+    expect(placement(moved, "a")).toEqual({ column_id: "done" });
+  });
+
+  test("back over its own column, returns to its old place, so the drop changes nothing", () => {
+    const columns = start();
+    const away = moveWhileSorted(columns, columns, "b", "c", statusOf);
+    for (const over of ["a", "todo"]) {
+      const back = moveWhileSorted(columns, away, "b", over, statusOf);
+      expect(back).toBe(columns);
+      expect(samePlacement(columns, back, "b")).toBe(true);
+    }
+  });
+
+  test("over the dragged card itself, or nothing known, keeps the current columns", () => {
+    const columns = start();
+    const away = moveWhileSorted(columns, columns, "a", "c", statusOf);
+    expect(moveWhileSorted(columns, away, "a", "a", statusOf)).toBe(away);
+    expect(moveWhileSorted(columns, away, "a", "nowhere", statusOf)).toBe(away);
   });
 });
 

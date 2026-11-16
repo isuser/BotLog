@@ -2,7 +2,7 @@
 
 import { useDroppable } from "@dnd-kit/core";
 import type { ReactNode } from "react";
-import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { SortableContext, verticalListSortingStrategy, type SortingStrategy } from "@dnd-kit/sortable";
 import { STATUS_COLORS } from "@/lib/client/task-labels";
 import type { BoardColumn as Column, Task } from "@/lib/client/types";
 import { cn } from "@/lib/utils";
@@ -15,12 +15,15 @@ export function BoardColumn({
   onAdd,
   focusOnShortcut,
   footer,
+  sorted = false,
 }: {
   column: Pick<Column, "id" | "name" | "counts_as" | "hidden">;
   tasks: Task[];
   onAdd: (columnId: string, title: string) => Promise<void>;
   focusOnShortcut: boolean;
   footer?: ReactNode;
+  /** The board is sorted: cards keep their places while one is dragged over them. */
+  sorted?: boolean;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: column.id });
   // Custom columns take the colour of the status they count as.
@@ -52,7 +55,7 @@ export function BoardColumn({
 
       {!column.hidden && <QuickAdd columnTitle={title} onAdd={(t) => onAdd(column.id, t)} focusOnShortcut={focusOnShortcut} />}
 
-      <SortableContext id={column.id} items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+      <SortableContext id={column.id} items={tasks.map((t) => t.id)} strategy={sorted ? KEEP_ORDER : verticalListSortingStrategy}>
         <ul
           ref={setNodeRef}
           className={cn(
@@ -71,3 +74,6 @@ export function BoardColumn({
     </section>
   );
 }
+
+/** No card makes room for the dragged one: in a sorted column, the sort decides where it lands. */
+const KEEP_ORDER: SortingStrategy = () => null;

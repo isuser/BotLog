@@ -12,6 +12,7 @@ import {
   type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
+  type KeyboardCoordinateGetter,
 } from "@dnd-kit/core";
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import Link from "next/link";
@@ -26,6 +27,7 @@ import {
   groupByColumn,
   inDoneWindow,
   moveToColumn,
+  moveWhileSorted,
   placement,
   reorderInColumn,
   replaceTask,
@@ -37,6 +39,7 @@ import { applyBoardView } from "@/lib/client/board-view";
 import type { BoardColumn as Column, Project, Task } from "@/lib/client/types";
 import { useBoardView } from "@/lib/client/use-board-view";
 import { BoardColumn } from "./board-column";
+import { BoardToolbar } from "./board-toolbar";
 import { TaskCard, useOpenNewTask, usePrefetchTaskRoute } from "./task-card";
 
 export function Board({ projectKey }: { projectKey: string }) {
@@ -51,7 +54,9 @@ export function Board({ projectKey }: { projectKey: string }) {
   const openNewTask = useOpenNewTask("board");
   // Filters and sort from the URL. They only change what each column shows, not the columns
   // themselves, so drags and moves still work on every task.
-  const [view] = useBoardView();
+  const [view, setView] = useBoardView();
+  // Sorted by ID or priority, the sort decides each column's order: drags change the column only.
+  const sorted = view.sort !== "manual";
   // Every column, hidden ones and the Backlog included, so each task has a place.
   const { data: projectColumns, error: columnsError } = useSWR(`/projects/${projectKey}/columns`, (path: string) =>
     apiAll<Column>(path),
@@ -84,7 +89,7 @@ export function Board({ projectKey }: { projectKey: string }) {
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 6 } }),
     // Enter opens a task, so only Space picks one up.
     useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
+      coordinateGetter: keyboardCoordinates,
       keyboardCodes: { start: ["Space"], cancel: ["Escape"], end: ["Space", "Enter"] },
     }),
   );
@@ -104,7 +109,12 @@ export function Board({ projectKey }: { projectKey: string }) {
 
   function onDragOver({ active, over }: DragOverEvent) {
     if (!over || !dragRef.current) return;
-    updateDrag(moveToColumn(dragRef.current.current, String(active.id), String(over.id), statusOf));
+    const { start, current } = dragRef.current;
+    updateDrag(
+      sorted
+        ? moveWhileSorted(start, current, String(active.id), String(over.id), statusOf)
+        : moveToColumn(current, String(active.id), String(over.id), statusOf),
+    );
   }
 
   function endDrag() {
@@ -119,7 +129,7 @@ export function Board({ projectKey }: { projectKey: string }) {
     const task = tasks?.find((t) => t.id === taskId);
     if (!drag || !task) return endDrag();
 
-    const final = over ? reorderInColumn(drag.current, taskId, String(over.id)) : drag.start;
+    const final = !over ? drag.start : sorted ? drag.current : reorderInColumn(drag.current, taskId, String(over.id));
     const target = placement(final, taskId);
     if (!target || samePlacement(drag.start, final, taskId)) return endDrag();
 
@@ -182,6 +192,7 @@ export function Board({ projectKey }: { projectKey: string }) {
 
   return (
     <main className="flex min-h-0 flex-1 flex-col pb-4">
+      <BoardToolbar view={view} onChange={setView} />
       {!tasks || !projectColumns ? (
         <BoardSkeleton />
       ) : (
@@ -203,6 +214,7 @@ export function Board({ projectKey }: { projectKey: string }) {
                   column={column}
                   tasks={applyBoardView(column.kind === "done" ? recentDone : (columns[column.id] ?? []), view)}
                   onAdd={addTask}
+                  sorted={sorted}
                   // The `c` shortcut focuses the first column's quick add.
                   focusOnShortcut={column.id === shown[0]?.id}
                   footer={
@@ -225,6 +237,21 @@ export function Board({ projectKey }: { projectKey: string }) {
     </main>
   );
 }
+
+/**
+ * dnd-kit's keyboard moves, with a fix for Left and Right. It counts a card as "to the right" if
+ * its left edge is even a pixel right of the dragged card's, and the tilted drag overlay is a little
+ * wider than the cards, so cards in the same column passed and Right moved down instead. Shifting
+ * the dragged card's rect a quarter of its width that way first leaves only the neighbouring columns.
+ */
+const keyboardCoordinates: KeyboardCoordinateGetter = (event, args) => {
+  const rect = args.context.collisionRect;
+  const sign = event.code === "ArrowRight" ? 1 : event.code === "ArrowLeft" ? -1 : 0;
+  if (!rect || sign === 0) return sortableKeyboardCoordinates(event, args);
+  const shift = (sign * rect.width) / 4;
+  const collisionRect = { ...rect, left: rect.left + shift, right: rect.right + shift };
+  return sortableKeyboardCoordinates(event, { ...args, context: { ...args.context, collisionRect } });
+};
 
 const DRAG_INSTRUCTIONS =
   "Press Enter to open the task. To pick it up, press Space. While dragging, use the arrow keys to move it, " +

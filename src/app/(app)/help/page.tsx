@@ -142,6 +142,14 @@ export default function HelpPage() {
               details; turn that off in <Link href="/settings">Settings</Link> under Tasks.
             </li>
             <li>
+              <strong>Sorting the board:</strong> <strong>Sort</strong> above the board orders each column by{" "}
+              <strong>Manual</strong> (the order you drag cards into, the default), <strong>Newest first</strong> or{" "}
+              <strong>Oldest first</strong> (by ID), or <strong>Priority</strong> (urgent first, then by ID). It only
+              changes what you see, not the tasks, and it&apos;s kept in the page&apos;s link, so you can bookmark or
+              share a sorted board. While sorted, you can still drag a card to another column, but not reorder it
+              within one: the sort decides where it sits. Switch back to Manual to rank cards by hand.
+            </li>
+            <li>
               <strong>Columns:</strong> add your own (like In review or QA) in the project&apos;s{" "}
               <strong>Settings</strong> under Columns: rename, reorder, or delete them (their tasks move to a column
               you pick). A column left of In progress counts as To do, one right of it as In progress: that&apos;s the
