@@ -15,6 +15,7 @@ import { isPlainKey, isTypingTarget, useKeydown } from "@/lib/client/shortcuts";
 import { fullDate, timeAgo } from "@/lib/client/format";
 import { isFullSegment, isTaskSegment, normalizeSegment, segmentLabel, taskLabel, taskProjectSegment, taskSegment } from "@/lib/client/refs";
 import type { BoardColumn, Profile, Task, TaskStatus } from "@/lib/client/types";
+import { useBoardQuery } from "@/lib/client/use-board-view";
 import { TaskActivity } from "./task-activity";
 import { TaskComments } from "./task-comments";
 import { TaskFields, TaskTitle, type FieldChange } from "./task-fields";
@@ -41,7 +42,10 @@ export function TaskPanel({
   const full = isFullSegment(projectKey);
   const router = useRouter();
   const { cache, mutate: mutateKey } = useSWRConfig();
-  const backHref = `/projects/${projectKey}${view === "board" ? "" : `/${view}`}`;
+  // Over the board, the URL carries its view (filters, sort); keep it when closing or redirecting.
+  const boardQuery = useBoardQuery();
+  const query = view === "board" ? boardQuery : "";
+  const backHref = `/projects/${projectKey}${view === "board" ? "" : `/${view}`}${query}`;
   const boardTasks = cache.get(`/projects/${projectKey}/tasks`)?.data as Task[] | undefined;
   const { data: task, error, mutate } = useSWR(
     `/tasks/${taskRef}`,
@@ -60,9 +64,9 @@ export function TaskPanel({
   // A task opened under another project's URL, or by UUID, moves to its own URL.
   useEffect(() => {
     if (task && (taskProjectSegment(task, full) !== projectKey || taskSegment(task, full) !== taskRef)) {
-      router.replace(taskHref(task, view, full), { scroll: false });
+      router.replace(taskHref(task, view, full, query), { scroll: false });
     }
-  }, [task, projectKey, taskRef, router, view, full]);
+  }, [task, projectKey, taskRef, router, view, full, query]);
 
   const syncBoard = (updated: Task) =>
     mutateKey(`/projects/${taskProjectSegment(updated, full)}/tasks`, (tasks?: Task[]) => tasks && syncTask(tasks, updated), {

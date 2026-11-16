@@ -14,6 +14,7 @@ import { taskHref, type TaskView } from "@/lib/client/board";
 import { isTaskSegment, taskLabel } from "@/lib/client/refs";
 import { PRIORITY_BADGE, TYPE_BADGE } from "@/lib/client/task-labels";
 import type { Profile, Task } from "@/lib/client/types";
+import { useBoardQuery } from "@/lib/client/use-board-view";
 import { useProjectPeople } from "@/lib/client/use-project-people";
 import { useFullFormUrl } from "@/lib/client/use-refs";
 import { cn } from "@/lib/utils";
@@ -80,7 +81,7 @@ export function SortableTaskCard({ task }: { task: Task }) {
   const router = useRouter();
   const { taskId } = useParams<{ taskId?: string }>();
   const full = useFullFormUrl();
-  const href = taskHref(task, "board", full);
+  const href = taskHref(task, "board", full, useBoardQuery());
 
   function open(newTab: boolean) {
     if (newTab) window.open(href, "_blank", "noopener");
@@ -125,7 +126,8 @@ export function SortableTaskCard({ task }: { task: Task }) {
 export function usePrefetchTaskRoute(tasks: Task[] | undefined, view: TaskView) {
   const router = useRouter();
   const full = useFullFormUrl();
-  const href = tasks?.[0] && taskHref(tasks[0], view, full);
+  const query = useViewQuery(view);
+  const href = tasks?.[0] && taskHref(tasks[0], view, full, query);
   useEffect(() => {
     if (href) router.prefetch(href);
   }, [href, router]);
@@ -141,7 +143,14 @@ export function useOpenNewTask(view: TaskView) {
   // On by default, like the profile column, so it works before /me has loaded.
   const enabled = me?.open_task_after_create ?? true;
   const full = useFullFormUrl();
+  const query = useViewQuery(view);
   return (task: Task) => {
-    if (enabled) router.push(taskHref(task, view, full), { scroll: false });
+    if (enabled) router.push(taskHref(task, view, full, query), { scroll: false });
   };
+}
+
+/** The board's view query for task links over the board; other views keep a plain URL. */
+function useViewQuery(view: TaskView) {
+  const query = useBoardQuery();
+  return view === "board" ? query : "";
 }

@@ -155,7 +155,12 @@ export type TaskView = "board" | "backlog" | "list";
 /**
  * A task's URL, open over its project's board (the shareable link), backlog or list. `full`
  * uses the full form (`/projects/ana%2FBOT/tasks/ana%2FBOT-42`), for viewers who see two
- * projects with the same key.
+ * projects with the same key. `query` (`?…` or "") carries the board's view, so its filters
+ * stay on while the task is open.
  */
-export const taskHref = (task: Pick<Task, "project_key" | "short_id" | "full_id">, view: TaskView = "board", full = false) =>
-  `/projects/${taskProjectSegment(task, full)}${view === "board" ? "" : `/${view}`}/tasks/${taskSegment(task, full)}`;
+export const taskHref = (
+  task: Pick<Task, "project_key" | "short_id" | "full_id">,
+  view: TaskView = "board",
+  full = false,
+  query = "",
+) => `/projects/${taskProjectSegment(task, full)}${view === "board" ? "" : `/${view}`}/tasks/${taskSegment(task, full)}${query}`;

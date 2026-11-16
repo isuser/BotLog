@@ -33,7 +33,9 @@ import {
   visibleColumns,
   type Columns,
 } from "@/lib/client/board";
+import { applyBoardView } from "@/lib/client/board-view";
 import type { BoardColumn as Column, Project, Task } from "@/lib/client/types";
+import { useBoardView } from "@/lib/client/use-board-view";
 import { BoardColumn } from "./board-column";
 import { TaskCard, useOpenNewTask, usePrefetchTaskRoute } from "./task-card";
 
@@ -47,6 +49,9 @@ export function Board({ projectKey }: { projectKey: string }) {
   const { data: tasks, error: tasksError, mutate } = useSWR(tasksKey, (path: string) => apiAll<Task>(path));
   usePrefetchTaskRoute(tasks, "board");
   const openNewTask = useOpenNewTask("board");
+  // Filters and sort from the URL. They only change what each column shows, not the columns
+  // themselves, so drags and moves still work on every task.
+  const [view] = useBoardView();
   // Every column, hidden ones and the Backlog included, so each task has a place.
   const { data: projectColumns, error: columnsError } = useSWR(`/projects/${projectKey}/columns`, (path: string) =>
     apiAll<Column>(path),
@@ -196,7 +201,7 @@ export function Board({ projectKey }: { projectKey: string }) {
                 <BoardColumn
                   key={column.id}
                   column={column}
-                  tasks={column.kind === "done" ? recentDone : (columns[column.id] ?? [])}
+                  tasks={applyBoardView(column.kind === "done" ? recentDone : (columns[column.id] ?? []), view)}
                   onAdd={addTask}
                   // The `c` shortcut focuses the first column's quick add.
                   focusOnShortcut={column.id === shown[0]?.id}
