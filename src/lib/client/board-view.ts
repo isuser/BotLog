@@ -142,3 +142,47 @@ export function sortBoardTasks(tasks: Task[], sort: BoardSort): Task[] {
 /** A column's tasks as the view shows them: filtered (tasks in `keep` always shown), then sorted. */
 export const applyBoardView = (tasks: Task[], view: BoardView, keep: readonly string[] = []) =>
   sortBoardTasks(filterTasks(tasks, view, keep), view.sort);
+
+/**
+ * Remembering the view: each project's last view is kept in this browser's localStorage, as its
+ * query without the `?`. A per-viewer convenience, never shared, so every read and write may fail
+ * quietly (private windows, blocked storage).
+ */
+export const boardViewStorageKey = (projectId: string) => `botlog-board-view:${projectId}`;
+
+type ViewStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
+
+// Reading `localStorage` itself can throw when storage is blocked, so it's looked up inside the try.
+const browserStorage = (): ViewStorage => globalThis.localStorage;
+
+/** The project's saved view query (`sort=…`), or null if there's none or storage can't be read. */
+export function readSavedView(projectId: string, storage: () => ViewStorage = browserStorage): string | null {
+  try {
+    return storage().getItem(boardViewStorageKey(projectId)) || null;
+  } catch {
+    return null;
+  }
+}
+
+/** Saves the project's view (a query from `boardViewQuery`); the default view ("") removes it. */
+export function writeSavedView(projectId: string, query: string, storage: () => ViewStorage = browserStorage) {
+  try {
+    const key = boardViewStorageKey(projectId);
+    if (query) storage().setItem(key, query.replace(/^\?/, ""));
+    else storage().removeItem(key);
+  } catch {
+    // The view still applies; it just isn't remembered.
+  }
+}
+
+/**
+ * The query to restore from a saved view (`?…`, or "" for nothing), cleaned like a link's: invalid
+ * values, and labels and epics the project no longer has, are dropped.
+ */
+export function savedViewQuery(
+  saved: string | null,
+  known: { labels?: readonly string[]; epics?: readonly string[] },
+): string {
+  if (!saved) return "";
+  return boardViewQuery(pruneBoardView(parseBoardView(new URLSearchParams(saved)), known));
+}
